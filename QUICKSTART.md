@@ -11,10 +11,17 @@
 
 This installs all skills as Claude Code slash commands.
 
-### 2. Initial Setup
+### 2. Check Prerequisites
 
 ```bash
-# Run inside Claude Code
+/setup
+```
+
+This checks for required tools (git, gh, jq), offers to install any missing ones, and verifies gh authentication.
+
+### 3. Configure
+
+```bash
 /prompt-review --setup
 ```
 
@@ -22,7 +29,7 @@ The setup wizard will guide you through:
 - Selecting the prompt review repo
 - Branch naming strategy
 
-### 3. Work Normally
+### 4. Work Normally
 
 Prompts are recorded automatically on each `git push` inside Claude Code.
 When you create a PR (`gh pr create`), a prompt review PR is also created.
@@ -32,7 +39,7 @@ When you create a PR (`gh pr create`), a prompt review PR is also created.
 /prompt-review
 ```
 
-### 4. Check Your Score Mid-Session
+### 5. Check Your Score Mid-Session
 
 ```bash
 /prompt-feedback
@@ -40,7 +47,7 @@ When you create a PR (`gh pr create`), a prompt review PR is also created.
 
 Get an instant scorecard of your current session prompts — no PR created, purely local.
 
-### 5. Review the PR
+### 6. Review the PR
 
 Open the generated PR URL in your browser:
 - Auto-scored scorecard with 8 criteria
@@ -116,6 +123,8 @@ gh auth login
 
 | Command | Purpose |
 |---------|---------|
+| `/setup` | Check prerequisites + install |
+| `/setup --check-only` | Check only, no install |
 | `/prompt-review` | Create prompt review PR |
 | `/prompt-review --setup` | Change settings |
 | `/prompt-review --status` | Check recent PRs |

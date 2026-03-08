@@ -138,8 +138,10 @@ prompt-craft/
     │   └── SKILL.md                       # /prompt-replay — Pattern extraction
     ├── prompt-compare/
     │   └── SKILL.md                       # /prompt-compare — Session comparison
-    └── prompt-template/
-        └── SKILL.md                       # /prompt-template — Reusable templates
+    ├── prompt-template/
+    │   └── SKILL.md                       # /prompt-template — Reusable templates
+    └── setup/
+        └── SKILL.md                       # /setup — Prerequisites & config
 ```
 
 ## Installation
@@ -179,6 +181,10 @@ cat ~/.claude/settings.json | jq '.hooks'
 
 ### Initial Setup
 ```bash
+# Check prerequisites and install missing dependencies
+/setup
+
+# Configure the prompt review repository
 /prompt-review --setup
 ```
 
@@ -197,6 +203,7 @@ cat ~/.claude/settings.json | jq '.hooks'
 
 | Skill | Purpose |
 |-------|---------|
+| `/setup` | Check prerequisites and configure (`--check-only`) |
 | `/prompt-review` | Create prompt review PR for team feedback |
 | `/prompt-feedback` | Local scoring + improvement tips |
 | `/prompt-stats` | Score trends over time (`--team`, `--last N`) |
