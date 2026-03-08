@@ -1,6 +1,6 @@
-# Prompt Request — Prompt Review Skill
+# Prompt Craft
 
-A Claude Code skill that enables team members to review each other's AI prompts via GitHub PRs, improving prompt quality over time.
+A Claude Code skill suite that enables team members to review each other's AI prompts via GitHub PRs, improving prompt quality over time.
 
 ## Core Idea
 
@@ -231,4 +231,4 @@ Refactor JWT refresh logic...
 
 ## License
 
-MIT (planned)
+MIT — see [LICENSE](LICENSE)
