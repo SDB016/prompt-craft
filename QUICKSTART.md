@@ -1,15 +1,15 @@
-# Quick Start - Prompt Review
+# Quick Start - Prompt Craft
 
 ## Get Started in 5 Minutes
 
 ### 1. Install
 
 ```bash
-cd promptrequest
-bash install.sh
+# Inside Claude Code, run:
+/install-plugin https://github.com/SDB016/prompt-craft
 ```
 
-This installs the skill files, the PostToolUse hook, and the prompt-feedback skill.
+This installs all skills as Claude Code slash commands.
 
 ### 2. Initial Setup
 
@@ -79,6 +79,11 @@ gh auth login
 |-------|---------|
 | `/prompt-review` | Create prompt review PR for team feedback |
 | `/prompt-feedback` | Local scoring + tips (no PR) |
+| `/prompt-stats` | Score trends over time |
+| `/prompt-tips` | Pre-task prompt writing guide |
+| `/prompt-replay` | Extract high-scoring patterns |
+| `/prompt-compare` | Compare two sessions |
+| `/prompt-template` | Reusable prompt templates |
 
 ---
 
@@ -144,7 +149,7 @@ gh auth status
 cat ~/.claude/settings.json | jq '.hooks'
 
 # Re-install hook
-bash ~/.claude/skills/prompt-review/hooks/install-hook.sh
+bash ~/.claude/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh
 ```
 
 ---

@@ -100,10 +100,12 @@ Multi-session / long-running work automatically accumulates on the same branch.
 ## Directory Structure
 
 ```
-promptrequest/
+prompt-craft/
+├── .claude-plugin/
+│   └── plugin.json                        # Plugin metadata
 ├── README.md                              # This file
-├── SESSION-NOTES.md                       # Initial brainstorming notes
 ├── QUICKSTART.md                          # Quick start guide
+├── LICENSE                                # MIT license
 ├── decisions/
 │   ├── 01-architecture.md                 # Architecture decisions
 │   ├── 02-implementation.md               # Implementation decisions
@@ -114,59 +116,61 @@ promptrequest/
 │   ├── 03-decisions.md                    # ⭐ Consolidated decision record (latest)
 │   ├── architect-review.md                # Architecture analysis
 │   └── security-review.md                 # Security review
-└── skill/
-    ├── SKILL.md                           # /prompt-review — PR creation skill
-    ├── PROMPT-FEEDBACK.md                 # /prompt-feedback — Local scoring
-    ├── PROMPT-STATS.md                    # /prompt-stats — Score trends
-    ├── PROMPT-TIPS.md                     # /prompt-tips — Pre-task guide
-    ├── PROMPT-REPLAY.md                   # /prompt-replay — Pattern extraction
-    ├── PROMPT-COMPARE.md                  # /prompt-compare — Session comparison
-    ├── PROMPT-TEMPLATE.md                 # /prompt-template — Reusable templates
-    ├── QUICKREF.md                        # Quick reference card
-    ├── hooks/
-    │   ├── prompt-review-hook.sh          # PostToolUse hook (git push / gh pr create)
-    │   └── install-hook.sh               # Hook installer script
-    ├── templates/
-    │   ├── prompt-review.md               # Prompt review PR template
-    │   └── prompt-review-example.md       # Filled example (JWT, 74/100)
-    └── utils/
-        └── secret-scan.sh                 # Secret scanning patterns
+└── skills/
+    ├── prompt-review/
+    │   ├── SKILL.md                       # /prompt-review — PR creation skill
+    │   ├── QUICKREF.md                    # Quick reference card
+    │   ├── hooks/
+    │   │   ├── prompt-review-hook.sh      # PostToolUse hook
+    │   │   └── install-hook.sh            # Hook installer script
+    │   ├── templates/
+    │   │   ├── prompt-review.md           # Prompt review PR template
+    │   │   └── prompt-review-example.md   # Filled example (JWT, 74/100)
+    │   └── utils/
+    │       └── secret-scan.sh             # Secret scanning patterns
+    ├── prompt-feedback/
+    │   └── SKILL.md                       # /prompt-feedback — Local scoring
+    ├── prompt-stats/
+    │   └── SKILL.md                       # /prompt-stats — Score trends
+    ├── prompt-tips/
+    │   └── SKILL.md                       # /prompt-tips — Pre-task guide
+    ├── prompt-replay/
+    │   └── SKILL.md                       # /prompt-replay — Pattern extraction
+    ├── prompt-compare/
+    │   └── SKILL.md                       # /prompt-compare — Session comparison
+    └── prompt-template/
+        └── SKILL.md                       # /prompt-template — Reusable templates
 ```
 
 ## Installation
 
-### Option 1: One-line install
+### Install via Claude Code Plugin
+
 ```bash
-git clone https://github.com/SDB016/prompt-craft.git && cd prompt-craft && bash install.sh
+# Inside Claude Code, run:
+/install-plugin https://github.com/SDB016/prompt-craft
 ```
 
-### Option 2: Manual install
+This automatically installs all skills and makes them available as slash commands.
+
+### Install PostToolUse Hook (Optional)
+
+The hook enables automatic prompt capture on `git push` and `gh pr create`:
+
 ```bash
-# Clone the repo
-git clone https://github.com/SDB016/prompt-craft.git
-
-# Copy skill files to Claude Code skills directory
-mkdir -p ~/.claude/skills/prompt-review
-cp -r prompt-craft/skill/* ~/.claude/skills/prompt-review/
-
-# Install the PostToolUse hook
-bash ~/.claude/skills/prompt-review/hooks/install-hook.sh
+bash ~/.claude/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh
 ```
+
+Restart Claude Code after installing the hook.
 
 ### Verify Installation
-```bash
-# Check skill files are in place
-ls ~/.claude/skills/prompt-review/
 
-# Check hook is registered
+```bash
+# Check plugin is installed (inside Claude Code)
+/plugins
+
+# Check hook is registered (optional)
 cat ~/.claude/settings.json | jq '.hooks'
-```
-
-Restart Claude Code after installation for the hook to take effect.
-
-### Uninstall
-```bash
-bash uninstall.sh
 ```
 
 ---
@@ -259,7 +263,7 @@ Refactor JWT refresh logic...
 - [x] PR template updated (new 8 criteria scorecard)
 - [x] PostToolUse hook implemented (git push / gh pr create detection)
 - [x] `/prompt-feedback` skill added (local scoring)
-- [x] Install/uninstall scripts updated
+- [x] Plugin structure (`/install-plugin` compatible)
 - [ ] E2E testing
 
 ## License
