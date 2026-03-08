@@ -133,12 +133,45 @@ promptrequest/
         └── secret-scan.sh                 # Secret scanning patterns
 ```
 
-## Usage
+## Installation
 
-### Install
+### Option 1: One-line install
 ```bash
-bash install.sh
+git clone https://github.com/SDB016/prompt-craft.git && cd prompt-craft && bash install.sh
 ```
+
+### Option 2: Manual install
+```bash
+# Clone the repo
+git clone https://github.com/SDB016/prompt-craft.git
+
+# Copy skill files to Claude Code skills directory
+mkdir -p ~/.claude/skills/prompt-review
+cp -r prompt-craft/skill/* ~/.claude/skills/prompt-review/
+
+# Install the PostToolUse hook
+bash ~/.claude/skills/prompt-review/hooks/install-hook.sh
+```
+
+### Verify Installation
+```bash
+# Check skill files are in place
+ls ~/.claude/skills/prompt-review/
+
+# Check hook is registered
+cat ~/.claude/settings.json | jq '.hooks'
+```
+
+Restart Claude Code after installation for the hook to take effect.
+
+### Uninstall
+```bash
+bash uninstall.sh
+```
+
+---
+
+## Usage
 
 ### Initial Setup
 ```bash
