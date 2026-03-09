@@ -1,0 +1,29 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "prompt-craft",
+  "description": "Prompt quality improvement toolkit — review, score, and improve your AI prompts as a team via GitHub PRs",
+  "owner": {
+    "name": "SDB016"
+  },
+  "plugins": [
+    {
+      "name": "prompt-craft",
+      "description": "Prompt quality improvement toolkit — review, score, and improve your AI prompts as a team via GitHub PRs. 8 criteria scoring, automatic capture, zero project footprint.",
+      "version": "1.0.0",
+      "author": {
+        "name": "SDB016"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/SDB016/prompt-craft",
+      "tags": [
+        "prompt-review",
+        "prompt-engineering",
+        "code-review",
+        "scoring",
+        "team-collaboration"
+      ]
+    }
+  ],
+  "version": "1.0.0"
+}

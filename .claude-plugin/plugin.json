@@ -2,7 +2,17 @@
   "name": "prompt-craft",
   "version": "1.0.0",
   "description": "Prompt quality improvement toolkit — review, score, and improve your AI prompts as a team via GitHub PRs",
-  "author": "SDB016",
+  "author": {
+    "name": "SDB016"
+  },
+  "repository": "https://github.com/SDB016/prompt-craft",
+  "homepage": "https://github.com/SDB016/prompt-craft",
   "license": "MIT",
-  "homepage": "https://github.com/SDB016/prompt-craft"
+  "keywords": [
+    "prompt-review",
+    "prompt-engineering",
+    "scoring",
+    "team-collaboration"
+  ],
+  "skills": "./skills/"
 }
