@@ -1,6 +1,10 @@
 # Prompt Craft
 
-A Claude Code skill suite that enables team members to review each other's AI prompts via GitHub PRs, improving prompt quality over time.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+**Prompt review for Claude Code. Code review looks at results — prompt review looks at causes.**
+
+---
 
 ## Quick Start
 
@@ -21,21 +25,44 @@ A Claude Code skill suite that enables team members to review each other's AI pr
 /prompt-feedback        # Local scoring (no PR)
 ```
 
+That's it. Prompts are automatically captured on `git push`, scored on `gh pr create`.
+
 ---
 
-## Core Idea
+## Why Prompt Craft?
 
-> "Code review looks at results. Prompt review looks at causes."
+- **Team-level prompt quality** - Review each other's AI prompts via GitHub PRs
+- **Auto-scoring** - 8 criteria, 100 points, single LLM call
+- **Zero project footprint** - All review PRs go to a separate repo, no traces in your project
+- **Complement to code review** - Code is evidence, prompts are the cause
+- **Security first** - Preview before send, automatic secret scanning
 
-After working with Claude Code, the developer's prompts and code changes are captured to a separate repo as a PR. Teammates review **prompt quality**, and code serves only as **evidence** of whether the prompts were effective.
+---
 
-**Purpose**:
-- Improve prompt engineering quality at the team level
-- Auto-score prompts with 8 criteria (100 points, single LLM call)
-- A **complement** to code review, not a replacement
-- "Reviewing code cold is old-fashioned — we already use AI for code review and only comment on what matters"
+## Skills
 
-## Workflow
+| Skill | Purpose |
+|-------|---------|
+| `/setup` | Check prerequisites and configure |
+| `/prompt-review` | Create prompt review PR for team feedback |
+| `/prompt-feedback` | Local scoring + improvement tips (`--verbose`) |
+| `/prompt-stats` | Score trends over time (`--team`, `--last N`) |
+| `/prompt-tips` | Pre-task prompt writing guide |
+| `/prompt-replay` | Extract high-scoring prompt patterns |
+| `/prompt-compare [#1] [#2]` | Compare two review sessions |
+| `/prompt-template` | Save/use reusable prompt templates |
+
+### Automatic Flow
+
+| Event | Action | In prompt repo |
+|-------|--------|----------------|
+| `git push` (inside Claude Code) | Capture prompts + diff | **Commit only** (no PR) |
+| `gh pr create` (inside Claude Code) | Aggregate + score | **Create PR** |
+| `/prompt-review` (manual) | Create PR at desired time | **Create PR** |
+
+---
+
+## How It Works
 
 ```
 [During development — record on each push]
@@ -60,37 +87,13 @@ After working with Claude Code, the developer's prompts and code changes are cap
     Teammates review prompt quality
 ```
 
-**Important**: No traces are left in the project repo.
+No traces are left in the project repo. All review PRs go to a separate repo (e.g., `my-org/ai-sessions`).
 
-## Key Decisions
+---
 
-### 1. Implementation
-**Decision**: Fully independent Claude Code skill
-- No server infrastructure needed, all processing is local
-- `gh` CLI for GitHub auth and PR creation
+## Scoring System
 
-### 2. Trigger (Two-phase structure)
-| Event | Action | In prompt repo |
-|-------|--------|----------------|
-| `git push` (inside Claude Code) | Capture prompts + diff | **Commit only** (no PR) |
-| `gh pr create` (inside Claude Code) | Aggregate + score | **Create PR** |
-| `/prompt-review` (manual) | Create PR at desired time | **Create PR** |
-
-Only operates inside Claude Code. External git push is not detected.
-Multi-session / long-running work automatically accumulates on the same branch.
-
-### 3. Zero Project Repo Footprint
-- No Git Trailers, Hooks, Branches, or PRs in the project repo
-- All review PRs go to a separate repo (e.g., `my-org/ai-sessions`)
-- Link direction: session→commit one-way only
-
-### 4. Code's Role: Evidence
-- Code is included in prompt review PRs, but only as **evidence**
-- Code quality itself is not evaluated
-- AI code review results are included, framed as "Prompt Gap"
-- Example: "Missing exit criteria → Claude made scope-exceeding changes"
-
-### 5. Evaluation System (8 criteria, single LLM scoring)
+8 criteria, 100 points total. Scored in a single LLM call.
 
 | Criterion | Points | Description |
 |-----------|--------|-------------|
@@ -103,113 +106,19 @@ Multi-session / long-running work automatically accumulates on the same branch.
 | Iteration Quality | 10 | Are follow-up requests specific and concrete? |
 | Complexity Fit | 10 | Is prompt sophistication appropriate for task complexity? |
 
-### 6. Gap Model
+### Gap Model
+
 | Gap | Description | Evaluator |
 |-----|-------------|-----------|
 | Gap 1 | Intent → Prompt | Humans only |
 | Gap 2 | Prompt → Code | AI can assist |
 
-### 7. Review Workflow
-- Same as code review — PR author assigns reviewers
-- Tool handles PR creation + scoring only, everything after is human-decided
-
-### 8. Security
-1. Preview + user confirmation required (no auto-send)
-2. Automatic secret scanning
-3. User-level config only
-
-## Directory Structure
-
-```
-prompt-craft/
-├── .claude-plugin/
-│   └── plugin.json                        # Plugin metadata
-├── README.md                              # This file
-├── QUICKSTART.md                          # Quick start guide
-├── LICENSE                                # MIT license
-├── decisions/
-│   ├── 01-architecture.md                 # Architecture decisions
-│   ├── 02-implementation.md               # Implementation decisions
-│   └── 03-prompt-review-pr-design.md      # PR template design rationale
-├── brainstorming/
-│   ├── 00-summary.md                      # Initial brainstorming summary
-│   ├── 02-expansion-brainstorm.md         # Expansion ideas (Phase 2+)
-│   ├── 03-decisions.md                    # ⭐ Consolidated decision record (latest)
-│   ├── architect-review.md                # Architecture analysis
-│   └── security-review.md                 # Security review
-└── skills/
-    ├── prompt-review/
-    │   ├── SKILL.md                       # /prompt-review — PR creation skill
-    │   ├── QUICKREF.md                    # Quick reference card
-    │   ├── hooks/
-    │   │   ├── prompt-review-hook.sh      # PostToolUse hook
-    │   │   └── install-hook.sh            # Hook installer script
-    │   ├── templates/
-    │   │   ├── prompt-review.md           # Prompt review PR template
-    │   │   └── prompt-review-example.md   # Filled example (JWT, 74/100)
-    │   └── utils/
-    │       └── secret-scan.sh             # Secret scanning patterns
-    ├── prompt-feedback/
-    │   └── SKILL.md                       # /prompt-feedback — Local scoring
-    ├── prompt-stats/
-    │   └── SKILL.md                       # /prompt-stats — Score trends
-    ├── prompt-tips/
-    │   └── SKILL.md                       # /prompt-tips — Pre-task guide
-    ├── prompt-replay/
-    │   └── SKILL.md                       # /prompt-replay — Pattern extraction
-    ├── prompt-compare/
-    │   └── SKILL.md                       # /prompt-compare — Session comparison
-    ├── prompt-template/
-    │   └── SKILL.md                       # /prompt-template — Reusable templates
-    └── setup/
-        └── SKILL.md                       # /setup — Prerequisites & config
-```
-
 ---
-
-## Usage
-
-### Initial Setup
-```bash
-# Check prerequisites and install missing dependencies
-/setup
-
-# Configure the prompt review repository
-/prompt-review --setup
-```
-
-### Create Prompt Review PR
-```bash
-/prompt-review
-```
-
-### Local Score Check (no PR)
-```bash
-/prompt-feedback
-/prompt-feedback --verbose
-```
-
-### All Skills
-
-| Skill | Purpose |
-|-------|---------|
-| `/setup` | Check prerequisites and configure (`--check-only`) |
-| `/prompt-review` | Create prompt review PR for team feedback |
-| `/prompt-feedback` | Local scoring + improvement tips |
-| `/prompt-stats` | Score trends over time (`--team`, `--last N`) |
-| `/prompt-tips` | Pre-task prompt writing guide |
-| `/prompt-replay` | Extract high-scoring prompt patterns |
-| `/prompt-compare [#1] [#2]` | Compare two review sessions |
-| `/prompt-template` | Save/use reusable prompt templates |
-
-### Automatic Flow
-- `git push` → commit to prompt repo (record only, via PostToolUse hook)
-- `gh pr create` → create PR in prompt repo (integrated scoring)
 
 ## Example PR
 
 ```markdown
-## 🔵 Score: 73/100 — JWT refresh logic refactoring
+## Score: 73/100 — JWT refresh logic refactoring
 
 > Prompts: 6 | Duration: ~35 min | LLM scored
 
@@ -230,38 +139,23 @@ prompt-craft/
 | `src/auth/middleware.ts` | modified (+31, −12) | Auto-refresh on 401, replaced error handling |
 
 ## Prompt Sequence
-### Prompt 1 🟢
-```
-Refactor JWT refresh logic...
-```
+### Prompt 1
+> Refactor JWT refresh logic...
 
 ## Improvement Suggestions
 ### Exit Criteria (4/10)
 > Claude exceeded scope. Prompt Gap: no exit criteria specified.
 ```
 
-## Tech Stack
+---
 
-| Tech | Role |
-|------|------|
-| Claude Code Skill | Markdown-based workflow |
-| Claude Code Hook | Auto-detect `git push` (`PostToolUse`) |
-| `gh` CLI | PR creation and management |
-| Git | Code diff extraction |
-| Bash | Skill execution logic |
+## Requirements
 
-## Current Status
+- [Claude Code](https://docs.anthropic.com/claude-code) CLI
+- [`gh` CLI](https://cli.github.com/) (for PR creation)
+- Git
 
-- [x] Core decisions confirmed (A: trigger, B: repo strategy, code role, Gap model)
-- [x] PR template design and example complete
-- [x] Evaluation criteria confirmed (C: 8 criteria, 100 points)
-- [x] Review workflow confirmed (D: same as code review)
-- [x] SKILL.md rewritten (two-phase capture + 8 criteria)
-- [x] PR template updated (new 8 criteria scorecard)
-- [x] PostToolUse hook implemented (git push / gh pr create detection)
-- [x] `/prompt-feedback` skill added (local scoring)
-- [x] Plugin structure (`/install-plugin` compatible)
-- [ ] E2E testing
+---
 
 ## License
 
