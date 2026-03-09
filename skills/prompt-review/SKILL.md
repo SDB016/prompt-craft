@@ -174,17 +174,22 @@ This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is 
 
 1. **All prompts** from the current session — **VERBATIM full text, not summaries**
 2. **User decisions** — AskUserQuestion selections (question → answer pairs)
-3. **Git diff summary** — per-file change table with +/- counts
-4. **File change summaries** — AI-generated one-line summary per changed file
-5. **Commit list** — SHAs and messages
-6. **Session metadata** — YAML block with session ID, branch, counts
+3. **Prompt quality score** — 8-criteria scorecard (100 points) with per-prompt mini-scores
+4. **Improvement suggestions** — concrete rewrite fragments for low-scoring criteria
+5. **Git diff summary** — per-file change table with +/- counts
+6. **File change summaries** — AI-generated one-line summary per changed file (flag constraint violations)
+7. **Commit list** — SHAs and messages
+8. **Session metadata** — YAML block with session ID, branch, counts, and score breakdown
 
 ### Critical Rules
 
 - **VERBATIM prompts only.** Paste the EXACT, COMPLETE text of every user prompt. Do NOT summarize, paraphrase, or shorten. Do NOT add "Intent:" labels. If a user typed 5 lines, include all 5 lines.
 - **Follow the template exactly.** Use `${CLAUDE_SKILL_DIR}/templates/push-record.md` as the format reference.
-- **One section per prompt.** Each prompt gets its own `### Prompt N` block with a fenced code block containing the raw text.
+- **One section per prompt.** Each prompt gets its own `### Prompt N {MINI_BADGE}` block with a fenced code block containing the raw text, followed by per-prompt mini-scores: `<sub>Goal G/20 · Exit E/10 · Scope S/15 · Context C/15</sub>`.
 - **Capture user decisions.** When AskUserQuestion selections follow a prompt, add a `### Decisions after Prompt N` block with a table of question → selected answer pairs.
+- **Score all prompts.** Evaluate the entire prompt sequence against 8 criteria (see Step C-3 scoring table). Include the Scorecard table and grade badge in the push record header.
+- **Suggest improvements.** For any criterion below 70% of its max, write a concrete "Instead of / Try" rewrite fragment. Omit the Improvement Suggestions section entirely if all criteria score well.
+- **Flag constraint violations.** In the Code Impact table, mark files that were changed against stated constraints with "**Flagged: constraint violation**".
 
 ### Output Format
 
@@ -194,27 +199,41 @@ The push file MUST contain ALL of these sections (see `templates/push-record.md`
 
 ```markdown
 # Push #N — BRANCH (DATE)
-> Session: SESSION_ID | Prompts: COUNT | Trigger: git-push-hook
+> GRADE_BADGE **Score: TOTAL/100** | Session: SESSION_ID | Prompts: COUNT | Trigger: git-push-hook
+
+## Prompt Quality Scorecard
+| | Criterion | Score | Progress | Finding |
+|---|---|---|---|---|
+| ICON | **Goal Clarity** | G/20 | PROGRESS_BAR | one-line finding |
+(all 8 criteria...)
 
 ## Prompt Sequence
-### Prompt 1
+### Prompt 1 MINI_BADGE
 \`\`\`
 (VERBATIM full text of what the user typed — NEVER summarize)
 \`\`\`
+<sub>Goal G/20 · Exit E/10 · Scope S/15 · Context C/15</sub>
 <!-- delta: one-line description of what changed after this prompt -->
 (repeat for every prompt in the session)
 
 ### Decisions after Prompt N
-(If user made AskUserQuestion selections after a prompt)
 | Question | Selected |
 |----------|----------|
 | question text | selected answer |
+
+## Improvement Suggestions
+(only for criteria below 70% of max — omit if all score well)
+### Criterion (scored SCORE/MAX)
+> What was missing
+**Suggested rewrite:**
+Instead of: "original"
+Try:        "improved"
 
 ## Code Impact
 > N files changed, +INSERTIONS −DELETIONS
 | File | Change | Summary |
 |------|--------|---------|
-| `path/to/file` | modified (+N, −M) | AI-generated one-line description |
+| `path/to/file` | modified (+N, −M) | AI-generated description (**Flagged** if constraint violation) |
 
 ## Commits
 - `SHA` COMMIT_MESSAGE
@@ -228,6 +247,17 @@ prompt_count: N
 push_number: N
 triggered_by: git-push-hook
 date: YYYY-MM-DD
+score:
+  total: N
+  goal_clarity: G
+  scope_control: S
+  context_sufficiency: C
+  exit_criteria: E
+  decomposition: D
+  verification_strategy: V
+  iteration_quality: I
+  complexity_fit: CF
+  grade: GRADE
 \`\`\`
 ```
 
