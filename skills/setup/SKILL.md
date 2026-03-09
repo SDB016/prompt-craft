@@ -17,7 +17,7 @@ Checks all prerequisites for Prompt Craft and guides the user through installati
 ## Step 0: Route
 
 - If `$ARGUMENTS` contains `--check-only` → run **[PREREQUISITE CHECK]** only, then stop
-- Otherwise → run **[PREREQUISITE CHECK]**, then proceed to **[CONFIGURATION]**
+- Otherwise → run **[PREREQUISITE CHECK]**, then **[CONFIGURATION]**, then **[HOOK INSTALLATION]**
 
 ---
 
@@ -231,6 +231,64 @@ jq -n \
     created_at: (now | todate)
   }' > "$CONFIG_FILE"
 ```
+
+---
+
+## [HOOK INSTALLATION]
+
+After configuration is complete, install the PostToolUse hook for automatic prompt capture on `git push` and `gh pr create`.
+
+### Detect Plugin Path
+
+Find the install-hook.sh script from the plugin directory:
+
+```bash
+# Check marketplace plugin path first, then fallback paths
+HOOK_INSTALLER=""
+for candidate in \
+  "$HOME/.claude/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh" \
+  "$HOME/.claude/plugins/marketplaces/"*/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh \
+  "$HOME/.claude/skills/prompt-review/hooks/install-hook.sh"; do
+  if [ -f "$candidate" ]; then
+    HOOK_INSTALLER="$candidate"
+    break
+  fi
+done
+
+if [ -n "$HOOK_INSTALLER" ]; then
+  echo "HOOK_INSTALLER_FOUND=$HOOK_INSTALLER"
+else
+  echo "HOOK_INSTALLER_NOT_FOUND"
+fi
+```
+
+### Install Hook
+
+If found, ask the user for confirmation, then run:
+
+```bash
+bash "$HOOK_INSTALLER"
+```
+
+If not found, show manual instructions:
+```
+Hook installer not found. To install manually, add to ~/.claude/settings.json:
+
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "command": "<path-to-plugin>/skills/prompt-review/hooks/prompt-review-hook.sh",
+        "timeout": 5
+      }]
+    }]
+  }
+}
+```
+
+**Important:** After hook installation, Claude Code must be restarted for the hook to take effect.
 
 ---
 

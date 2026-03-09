@@ -5,12 +5,13 @@
 set -euo pipefail
 
 SETTINGS_FILE="$HOME/.claude/settings.json"
-HOOK_PATH="$HOME/.claude/skills/prompt-review/hooks/prompt-review-hook.sh"
 
-# Ensure hook script exists and is executable
+# Auto-detect hook path (marketplace plugin or manual install)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+HOOK_PATH="$SCRIPT_DIR/prompt-review-hook.sh"
+
 if [[ ! -f "$HOOK_PATH" ]]; then
   echo "Error: Hook script not found at $HOOK_PATH"
-  echo "Fix:   Copy the skill files first: cp -r skill/* ~/.claude/skills/prompt-review/"
   exit 1
 fi
 chmod +x "$HOOK_PATH"
