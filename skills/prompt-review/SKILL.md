@@ -2,7 +2,7 @@
 name: prompt-review
 description: Capture prompts from Claude Code sessions and create prompt review PRs for team feedback. Use when asked to review prompts, create prompt PR, or share session prompts.
 argument-hint: "[--push] [--setup] [--status]"
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Bash, Read, Grep, Glob
 ---
 
