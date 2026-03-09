@@ -1,5 +1,4 @@
 {
-  "description": "Prompt Craft — automatic prompt capture on git push and gh pr create",
   "hooks": {
     "PostToolUse": [
       {
@@ -7,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/prompt-review/hooks/prompt-review-hook.sh\"",
-            "timeout": 5
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/prompt-review/hooks/prompt-review-hook.sh\"",
+            "timeout": 30
           }
         ]
       }
