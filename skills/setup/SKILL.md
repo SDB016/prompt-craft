@@ -193,9 +193,52 @@ gh repo view "$REPO" --json name 2>/dev/null \
   || echo "REPO_ACCESSIBLE=false"
 ```
 
-If not accessible, offer:
-1. **Create it** — `gh repo create "$REPO" --public` (or `--private`)
-2. **Try a different name**
+#### Case A: Repo accessible → check if it has commits
+
+```bash
+# Clone and check if repo is empty (no branches/commits)
+TEMP_DIR=$(mktemp -d)
+gh repo clone "$REPO" "$TEMP_DIR" -- --depth 1 2>/dev/null
+if [ $? -ne 0 ] || [ -z "$(git -C "$TEMP_DIR" log --oneline -1 2>/dev/null)" ]; then
+  echo "REPO_EMPTY=true"
+else
+  echo "REPO_EMPTY=false"
+fi
+rm -rf "$TEMP_DIR"
+```
+
+If repo is empty (`REPO_EMPTY=true`), initialize it automatically:
+
+```bash
+TEMP_DIR=$(mktemp -d)
+gh repo clone "$REPO" "$TEMP_DIR" 2>/dev/null || git clone "$(gh repo view "$REPO" --json sshUrl -q .sshUrl)" "$TEMP_DIR"
+cd "$TEMP_DIR"
+echo "# Prompt Reviews" > README.md
+mkdir -p sessions
+echo "Prompt review sessions are stored here." > sessions/.gitkeep
+git add README.md sessions/.gitkeep
+git commit -m "Initial commit: prompt reviews repository"
+git push -u origin main
+cd -
+rm -rf "$TEMP_DIR"
+```
+
+Tell the user: "Review repository initialized with README and sessions/ directory."
+
+#### Case B: Repo not accessible → offer to create
+
+**Ask:** "Repository `{REPO}` doesn't exist. What would you like to do?"
+
+**Options:**
+1. **Create as private** — `gh repo create "$REPO" --private --description "Prompt review PRs from Prompt Craft"` then initialize (same as above)
+2. **Create as public** — `gh repo create "$REPO" --public --description "Prompt review PRs from Prompt Craft"` then initialize
+3. **Try a different name** — ask again
+
+**Important:** After creating the repo, always run the initialization step (Case A empty repo) to ensure there is at least one commit on the base branch.
+
+#### Case C: Repo accessible and has commits → proceed
+
+No action needed. Proceed to Step C-2.
 
 ---
 
