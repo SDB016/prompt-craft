@@ -2,6 +2,27 @@
 
 A Claude Code skill suite that enables team members to review each other's AI prompts via GitHub PRs, improving prompt quality over time.
 
+## Quick Start
+
+**Step 1: Install**
+```
+/plugin marketplace add https://github.com/SDB016/prompt-craft
+/plugin install prompt-craft
+```
+
+**Step 2: Setup**
+```
+/setup
+```
+
+**Step 3: Use**
+```
+/prompt-review          # Create prompt review PR
+/prompt-feedback        # Local scoring (no PR)
+```
+
+---
+
 ## Core Idea
 
 > "Code review looks at results. Prompt review looks at causes."
@@ -142,37 +163,6 @@ prompt-craft/
     │   └── SKILL.md                       # /prompt-template — Reusable templates
     └── setup/
         └── SKILL.md                       # /setup — Prerequisites & config
-```
-
-## Installation
-
-### Install via Claude Code Plugin
-
-```bash
-# Inside Claude Code, run:
-/install-plugin https://github.com/SDB016/prompt-craft
-```
-
-This automatically installs all skills and makes them available as slash commands.
-
-### Install PostToolUse Hook (Optional)
-
-The hook enables automatic prompt capture on `git push` and `gh pr create`:
-
-```bash
-bash ~/.claude/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh
-```
-
-Restart Claude Code after installing the hook.
-
-### Verify Installation
-
-```bash
-# Check plugin is installed (inside Claude Code)
-/plugins
-
-# Check hook is registered (optional)
-cat ~/.claude/settings.json | jq '.hooks'
 ```
 
 ---
