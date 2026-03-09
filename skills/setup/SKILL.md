@@ -281,60 +281,45 @@ jq -n \
 
 ## [HOOK INSTALLATION]
 
-After configuration is complete, install the PostToolUse hook for automatic prompt capture on `git push` and `gh pr create`.
+Since v1.1.0, hooks are **auto-registered** via `hooks/hooks.json` in the plugin package. No manual installation is needed when Prompt Craft is installed as a plugin.
 
-### Detect Plugin Path
-
-Find the install-hook.sh script from the plugin directory:
+### Verify Auto-Registration
 
 ```bash
-# Check marketplace plugin path first, then fallback paths
-HOOK_INSTALLER=""
-for candidate in \
-  "$HOME/.claude/plugins/marketplaces/prompt-craft/skills/prompt-review/hooks/install-hook.sh" \
-  "$HOME/.claude/plugins/cache/prompt-craft/prompt-craft/"*/skills/prompt-review/hooks/install-hook.sh \
-  "$HOME/.claude/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh" \
-  "$HOME/.claude/skills/prompt-review/hooks/install-hook.sh"; do
-  if [ -f "$candidate" ]; then
-    HOOK_INSTALLER="$candidate"
-    break
-  fi
-done
-
-if [ -n "$HOOK_INSTALLER" ]; then
-  echo "HOOK_INSTALLER_FOUND=$HOOK_INSTALLER"
+# Check if Prompt Craft plugin is enabled
+if [ -f "$HOME/.claude/plugins/marketplaces/prompt-craft/.claude-plugin/plugin.json" ] || \
+   ls "$HOME/.claude/plugins/cache/prompt-craft/" &>/dev/null 2>&1; then
+  echo "PLUGIN_ENABLED=true"
 else
-  echo "HOOK_INSTALLER_NOT_FOUND"
+  echo "PLUGIN_ENABLED=false"
 fi
 ```
 
-### Install Hook
+If plugin is enabled → hooks are active. No further action needed.
 
-If found, ask the user for confirmation, then run:
+### Migrate Legacy Hook (if needed)
+
+If the user previously installed the hook manually (v1.0.x), run the migration tool to clean up:
 
 ```bash
-bash "$HOOK_INSTALLER"
+# Detect legacy hook in settings.json
+LEGACY=$(jq -r '.hooks.PostToolUse[]? | select(.hooks[]?.command | test("prompt-review-hook")) | .hooks[0].command' "$HOME/.claude/settings.json" 2>/dev/null || true)
+
+if [ -n "$LEGACY" ]; then
+  echo "LEGACY_HOOK_FOUND=$LEGACY"
+else
+  echo "NO_LEGACY_HOOK"
+fi
 ```
 
-If not found, show manual instructions:
-```
-Hook installer not found. To install manually, add to ~/.claude/settings.json:
+If legacy hook found, ask user: "A legacy manual hook was found. Remove it? (auto-registration replaces it)"
 
-{
-  "hooks": {
-    "PostToolUse": [{
-      "matcher": "Bash",
-      "hooks": [{
-        "type": "command",
-        "command": "<path-to-plugin>/skills/prompt-review/hooks/prompt-review-hook.sh",
-        "timeout": 5
-      }]
-    }]
-  }
-}
+If yes, run the migration tool from the plugin directory:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/prompt-review/hooks/install-hook.sh"
 ```
 
-**Important:** After hook installation, Claude Code must be restarted for the hook to take effect.
+**Important:** After migration, Claude Code must be restarted for changes to take effect.
 
 ---
 
