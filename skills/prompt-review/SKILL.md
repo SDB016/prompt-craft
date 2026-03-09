@@ -172,16 +172,56 @@ This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is 
 
 ### What It Captures
 
-1. **All prompts** from the current session (full capture, no deduplication at this stage)
-2. **Git diff summary** — `git diff --stat` for the pushed commits
+1. **All prompts** from the current session — **VERBATIM full text, not summaries**
+2. **Git diff summary** — per-file change table with +/- counts
 3. **File change summaries** — AI-generated one-line summary per changed file
 4. **Commit list** — SHAs and messages
+5. **Session metadata** — YAML block with session ID, branch, counts
+
+### Critical Rules
+
+- **VERBATIM prompts only.** Paste the EXACT, COMPLETE text of every user prompt. Do NOT summarize, paraphrase, or shorten. Do NOT add "Intent:" labels. If a user typed 5 lines, include all 5 lines.
+- **Follow the template exactly.** Use `${CLAUDE_SKILL_DIR}/templates/push-record.md` as the format reference.
+- **One section per prompt.** Each prompt gets its own `### Prompt N` block with a fenced code block containing the raw text.
 
 ### Output Format
 
 Creates a file in the prompt repo: `sessions/{branch-name}/push-{NNN}.md`
 
-Use session ID `${CLAUDE_SESSION_ID}` in the push file metadata.
+The push file MUST contain ALL of these sections (see `templates/push-record.md` for full template):
+
+```markdown
+# Push #N — BRANCH (DATE)
+> Session: SESSION_ID | Prompts: COUNT | Trigger: git-push-hook
+
+## Prompt Sequence
+### Prompt 1
+\`\`\`
+(VERBATIM full text of what the user typed — NEVER summarize)
+\`\`\`
+<!-- delta: one-line description of what changed after this prompt -->
+(repeat for every prompt in the session)
+
+## Code Impact
+> N files changed, +INSERTIONS −DELETIONS
+| File | Change | Summary |
+|------|--------|---------|
+| `path/to/file` | modified (+N, −M) | AI-generated one-line description |
+
+## Commits
+- `SHA` COMMIT_MESSAGE
+
+## Session Metadata
+\`\`\`yaml
+session_id: ...
+project_repo: OWNER/REPO
+project_branch: BRANCH
+prompt_count: N
+push_number: N
+triggered_by: git-push-hook
+date: YYYY-MM-DD
+\`\`\`
+```
 
 ### Implementation
 
@@ -197,27 +237,50 @@ DATE=$(date +%Y-%m-%d)
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
 
-# Use HTTPS + token to avoid SSH key mismatch in multi-account setups
-GH_TOKEN=$(gh auth token)
-git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR"
+# Clone the prompt review repo
+# Try HTTPS + token first, fall back to SSH if it fails
+GH_TOKEN=$(gh auth token 2>/dev/null || true)
+if [ -n "$GH_TOKEN" ]; then
+  git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+fi
+if [ ! -d "$ARCHIVE_DIR/.git" ]; then
+  # HTTPS failed — try SSH variants
+  git clone "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+    || git clone "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+    || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
+fi
 
+# Switch to the prompt-data branch (create or checkout existing)
+cd "$ARCHIVE_DIR"
+git fetch origin "prompt-data/$BRANCH" 2>/dev/null || true
+if git rev-parse --verify "origin/prompt-data/$BRANCH" &>/dev/null; then
+  git checkout -b "prompt-data/$BRANCH" "origin/prompt-data/$BRANCH"
+else
+  git checkout -b "prompt-data/$BRANCH" "origin/$BASE_BRANCH"
+fi
+
+# Create session directory and determine push number
 SESSION_DIR="$ARCHIVE_DIR/sessions/$BRANCH"
 mkdir -p "$SESSION_DIR"
-
 PUSH_NUM=$(ls "$SESSION_DIR"/push-*.md 2>/dev/null | wc -l | tr -d ' ')
 PUSH_NUM=$((PUSH_NUM + 1))
 PUSH_FILE="$SESSION_DIR/push-$(printf '%03d' $PUSH_NUM).md"
 
-# AI generates push file content from session context + git diff
-# (see push file format in templates/)
+# AI writes push file content following templates/push-record.md format
+# (Claude generates the content based on session context + git diff)
 
-cd "$ARCHIVE_DIR"
-git checkout -b "prompt-data/$BRANCH" "origin/$BASE_BRANCH" 2>/dev/null \
-  || git checkout "prompt-data/$BRANCH" 2>/dev/null
-git add "$PUSH_FILE"
+git add .
 git commit -m "push: $BRANCH push #$PUSH_NUM ($DATE)"
 git push origin "prompt-data/$BRANCH"
 ```
+
+### Error Recovery
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| HTTPS clone fails | SSH-only auth or multi-account setup | Script auto-falls back to SSH |
+| Branch already exists | Previous push created it | Script fetches and checks out existing branch |
+| Push number conflict | Race condition | Script counts existing files to determine next number |
 
 ---
 
