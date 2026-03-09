@@ -198,7 +198,8 @@ gh repo view "$REPO" --json name 2>/dev/null \
 ```bash
 # Clone and check if repo is empty (no branches/commits)
 TEMP_DIR=$(mktemp -d)
-gh repo clone "$REPO" "$TEMP_DIR" -- --depth 1 2>/dev/null
+GH_TOKEN=$(gh auth token)
+git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$TEMP_DIR" 2>/dev/null
 if [ $? -ne 0 ] || [ -z "$(git -C "$TEMP_DIR" log --oneline -1 2>/dev/null)" ]; then
   echo "REPO_EMPTY=true"
 else
@@ -211,7 +212,8 @@ If repo is empty (`REPO_EMPTY=true`), initialize it automatically:
 
 ```bash
 TEMP_DIR=$(mktemp -d)
-gh repo clone "$REPO" "$TEMP_DIR" 2>/dev/null || git clone "$(gh repo view "$REPO" --json sshUrl -q .sshUrl)" "$TEMP_DIR"
+GH_TOKEN=$(gh auth token)
+git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$TEMP_DIR"
 cd "$TEMP_DIR"
 echo "# Prompt Reviews" > README.md
 mkdir -p sessions

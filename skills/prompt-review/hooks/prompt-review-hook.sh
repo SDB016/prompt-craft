@@ -16,11 +16,12 @@ fi
 # Read JSON from stdin
 INPUT=$(cat)
 
-COMMAND=$(echo "$INPUT" | jq -r '[.tool_input.command // ""] | .[0]')
-EXIT_CODE=$(echo "$INPUT" | jq -r '[.tool_response.exit_code // "unknown"] | .[0]')
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
 
-# Only act on successful Bash commands
-if [[ "$EXIT_CODE" != "0" ]]; then
+# tool_response is a plain string (stdout), not an object.
+# We skip commands that produced error-like output.
+RESPONSE=$(echo "$INPUT" | jq -r '.tool_response // ""')
+if echo "$RESPONSE" | grep -qiE '(fatal|error|rejected|denied)'; then
   exit 0
 fi
 
@@ -34,13 +35,15 @@ fi
 # Excludes --dry-run and --delete variants
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \
    ! echo "$COMMAND" | grep -qE 'git\s+push\s+.*--(dry-run|delete)'; then
-  echo "git push detected. Run the prompt-review [PUSH HOOK] flow: capture current session prompts and code changes, then commit to the prompt review repository. Do NOT create a PR — only record this push." >&2
+  echo "git push detected. Use the Skill tool to run: /prompt-review --push" >&2
+  echo "This will capture current session prompts and commit them to the prompt review repository." >&2
   exit 2
 fi
 
 # Detect: gh pr create (anchored)
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)gh\s+pr\s+create\b'; then
-  echo "gh pr create detected. Run the prompt-review [CAPTURE FLOW]: aggregate all push records from the prompt repo, score prompts against 8 criteria, and create a prompt review PR. Ask the user for confirmation before creating the PR." >&2
+  echo "gh pr create detected. Use the Skill tool to run: /prompt-review" >&2
+  echo "This will aggregate push records, score prompts, and create a prompt review PR." >&2
   exit 2
 fi
 

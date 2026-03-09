@@ -1,7 +1,7 @@
 ---
 name: prompt-review
 description: Capture prompts from Claude Code sessions and create prompt review PRs for team feedback. Use when asked to review prompts, create prompt PR, or share session prompts.
-argument-hint: "[--setup] [--status]"
+argument-hint: "[--push] [--setup] [--status]"
 disable-model-invocation: true
 allowed-tools: Bash, Read, Grep, Glob
 ---
@@ -33,6 +33,7 @@ This means:
 
 ## Step 0: Route the Request
 
+- If `$ARGUMENTS` contains `--push` → jump to **[PUSH HOOK]**
 - If `$ARGUMENTS` contains `--setup` → jump to **[SETUP WIZARD]**
 - If `$ARGUMENTS` contains `--status` → jump to **[STATUS DISPLAY]**
 - If no config exists at `~/.claude/prompt-review.config.json` → run **[SETUP WIZARD]** first
@@ -195,7 +196,10 @@ DATE=$(date +%Y-%m-%d)
 
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
-gh repo clone "$REPO" "$ARCHIVE_DIR" -- --depth 1 2>/dev/null
+
+# Use HTTPS + token to avoid SSH key mismatch in multi-account setups
+GH_TOKEN=$(gh auth token)
+git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR"
 
 SESSION_DIR="$ARCHIVE_DIR/sessions/$BRANCH"
 mkdir -p "$SESSION_DIR"
@@ -251,7 +255,8 @@ BRANCH=$(git branch --show-current 2>/dev/null)
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
 
-gh repo clone "$REPO" "$ARCHIVE_DIR" -- --depth 1
+GH_TOKEN=$(gh auth token)
+git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR"
 SESSION_DIR="$ARCHIVE_DIR/sessions/$BRANCH"
 
 if [ ! -d "$SESSION_DIR" ] || [ -z "$(ls "$SESSION_DIR"/push-*.md 2>/dev/null)" ]; then
@@ -323,7 +328,8 @@ PR_BODY_FILE="$(mktemp)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR" "$PR_BODY_FILE"' EXIT
 
 echo "  [1/5] Cloning review repository..."
-gh repo clone "$REPO" "$ARCHIVE_DIR" -- --depth 1
+GH_TOKEN=$(gh auth token)
+git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR"
 
 echo "  [2/5] Creating branch..."
 cd "$ARCHIVE_DIR"
