@@ -25,6 +25,18 @@
 
 <!-- Continue for ALL prompts in the session... -->
 
+<!-- If the user made selections via AskUserQuestion (Claude's interactive questions),
+     include them as a Decision block right after the related prompt.
+     Format: question → selected answer. Include ALL question-answer pairs. -->
+
+### Decisions after Prompt N
+| Question | Selected |
+|----------|----------|
+| 통합 엔드포인트의 경로를 어떻게 할까요? | /shape (Recommended) |
+
+<!-- Only include this block when AskUserQuestion selections exist.
+     One row per question-answer pair. Include the full question text and selected option. -->
+
 ---
 
 ## Code Impact

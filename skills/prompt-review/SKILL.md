@@ -173,16 +173,18 @@ This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is 
 ### What It Captures
 
 1. **All prompts** from the current session — **VERBATIM full text, not summaries**
-2. **Git diff summary** — per-file change table with +/- counts
-3. **File change summaries** — AI-generated one-line summary per changed file
-4. **Commit list** — SHAs and messages
-5. **Session metadata** — YAML block with session ID, branch, counts
+2. **User decisions** — AskUserQuestion selections (question → answer pairs)
+3. **Git diff summary** — per-file change table with +/- counts
+4. **File change summaries** — AI-generated one-line summary per changed file
+5. **Commit list** — SHAs and messages
+6. **Session metadata** — YAML block with session ID, branch, counts
 
 ### Critical Rules
 
 - **VERBATIM prompts only.** Paste the EXACT, COMPLETE text of every user prompt. Do NOT summarize, paraphrase, or shorten. Do NOT add "Intent:" labels. If a user typed 5 lines, include all 5 lines.
 - **Follow the template exactly.** Use `${CLAUDE_SKILL_DIR}/templates/push-record.md` as the format reference.
 - **One section per prompt.** Each prompt gets its own `### Prompt N` block with a fenced code block containing the raw text.
+- **Capture user decisions.** When AskUserQuestion selections follow a prompt, add a `### Decisions after Prompt N` block with a table of question → selected answer pairs.
 
 ### Output Format
 
@@ -201,6 +203,12 @@ The push file MUST contain ALL of these sections (see `templates/push-record.md`
 \`\`\`
 <!-- delta: one-line description of what changed after this prompt -->
 (repeat for every prompt in the session)
+
+### Decisions after Prompt N
+(If user made AskUserQuestion selections after a prompt)
+| Question | Selected |
+|----------|----------|
+| question text | selected answer |
 
 ## Code Impact
 > N files changed, +INSERTIONS −DELETIONS
