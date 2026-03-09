@@ -56,11 +56,41 @@ if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \
    PUSH_NUM=\$((PUSH_NUM + 1))
    PUSH_FILE="\$ARCHIVE_DIR/sessions/\$BRANCH/push-\$(printf '%03d' \$PUSH_NUM).md"
 
-4. Write the push file with this content:
-   - Header: "# Push #N — BRANCH (DATE)"
-   - Section "## Prompts": summarize ALL user prompts from this session (what the user asked for)
-   - Section "## Changes": output of git diff --stat HEAD~1 (or recent changes)
-   - Section "## Commits": list of recent commit messages
+4. Write the push file in markdown with ALL of the following sections:
+
+   ## Header
+   # Push #N — BRANCH (DATE)
+   > Session: CLAUDE_SESSION_ID | Prompts: COUNT | Trigger: git-push-hook
+
+   ## Prompt Sequence
+   For EACH user prompt in this session, write a separate block:
+   ### Prompt N
+   \`\`\`
+   (paste the VERBATIM full text of what the user typed — do NOT summarize)
+   \`\`\`
+   <!-- delta: one-line description of what changed after this prompt -->
+
+   ## Code Impact
+   > TOTAL files changed, +INSERTIONS −DELETIONS
+   | File | Change | Summary |
+   |---|---|---|
+   | \`path/to/file\` | added/modified (+N, −M) | AI-generated one-line description |
+   (one row per changed file — generate a meaningful summary, not just the filename)
+
+   ## Commits
+   - \`SHA\` COMMIT_MESSAGE (one per line, from git log)
+
+   ## Session Metadata
+   \`\`\`yaml
+   session_id: ...
+   project_repo: OWNER/REPO
+   project_branch: BRANCH
+   prompt_count: N
+   push_number: N
+   triggered_by: git-push-hook
+   \`\`\`
+
+   IMPORTANT: Include the FULL verbatim text of every user prompt. Do NOT summarize prompts into one-liners.
 
 5. Commit and push to the prompt review repo:
    cd "\$ARCHIVE_DIR"
