@@ -169,7 +169,68 @@ fi
 ```
 
 - If config exists → show current config and ask: "Configuration already exists. Reconfigure?"
-- If no config or user wants to reconfigure → tell the user to run `/prompt-review --setup` for the configuration wizard
+- If no config or user wants to reconfigure → proceed to **[CONFIGURATION WIZARD]**
+
+---
+
+## [CONFIGURATION WIZARD]
+
+### Step C-1: Collect the Review Repository
+
+**Ask:** "Which GitHub repository should prompt reviews be sent to? (format: `owner/repo`)"
+
+Examples: `myname/ai-sessions`, `myorg/prompt-reviews`
+
+**Validate:**
+- Must match `[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+`
+- Check accessibility via `gh repo view`
+
+```bash
+REPO="USER_PROVIDED_REPO"
+
+gh repo view "$REPO" --json name 2>/dev/null \
+  && echo "REPO_ACCESSIBLE=true" \
+  || echo "REPO_ACCESSIBLE=false"
+```
+
+If not accessible, offer:
+1. **Create it** — `gh repo create "$REPO" --public` (or `--private`)
+2. **Try a different name**
+
+---
+
+### Step C-2: Branch and PR Defaults
+
+**Ask:** "How should prompt review branches be named?"
+
+**Options:**
+1. **`prompt-review/YYYY-MM-DD-slug`** (default)
+2. **`review/topic-slug`**
+3. **Custom prefix**
+
+Then ask for base branch (`main` or `master` or custom).
+
+---
+
+### Step C-3: Write Configuration
+
+```bash
+CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
+mkdir -p "$(dirname "$CONFIG_FILE")"
+
+jq -n \
+  --arg repo "$REPO" \
+  --arg branch_prefix "$BRANCH_PREFIX" \
+  --arg base_branch "$BASE_BRANCH" \
+  --arg label "prompt-review" \
+  '{
+    repo: $repo,
+    branch_prefix: $branch_prefix,
+    base_branch: $base_branch,
+    label: $label,
+    created_at: (now | todate)
+  }' > "$CONFIG_FILE"
+```
 
 ---
 
@@ -188,20 +249,14 @@ Prerequisites:
 Configuration:
   ✓ Config file: ~/.claude/prompt-review.config.json
     Review repo: owner/ai-sessions
+    Branch prefix: prompt-review/
+    Base branch: main
 
 Ready to use:
   /prompt-review        — Create prompt review PR
   /prompt-feedback      — Local scoring
   /prompt-tips          — Pre-task guide
-  /prompt-setup --check-only  — Re-check prerequisites
-```
-
-If config doesn't exist yet:
-
-```
-Configuration:
-  ✗ Not configured yet
-  → Run: /prompt-review --setup
+  /setup --check-only   — Re-check prerequisites
 ```
 
 ---

@@ -18,14 +18,9 @@
 ```
 /setup
 ```
+Checks prerequisites (git, gh, jq) and configures your review repository.
 
-**Step 3: Configure**
-```
-/prompt-review --setup
-```
-Set your review repository (e.g., `my-org/ai-sessions`), branch prefix, and base branch.
-
-**Step 4: Use**
+**Step 3: Use**
 ```
 /prompt-review          # Create prompt review PR
 /prompt-feedback        # Local scoring (no PR)
