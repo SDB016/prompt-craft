@@ -291,8 +291,9 @@ Find the install-hook.sh script from the plugin directory:
 # Check marketplace plugin path first, then fallback paths
 HOOK_INSTALLER=""
 for candidate in \
+  "$HOME/.claude/plugins/marketplaces/prompt-craft/skills/prompt-review/hooks/install-hook.sh" \
+  "$HOME/.claude/plugins/cache/prompt-craft/prompt-craft/"*/skills/prompt-review/hooks/install-hook.sh \
   "$HOME/.claude/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh" \
-  "$HOME/.claude/plugins/marketplaces/"*/plugins/prompt-craft/skills/prompt-review/hooks/install-hook.sh \
   "$HOME/.claude/skills/prompt-review/hooks/install-hook.sh"; do
   if [ -f "$candidate" ]; then
     HOOK_INSTALLER="$candidate"

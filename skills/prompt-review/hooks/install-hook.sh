@@ -22,25 +22,36 @@ if [[ ! -f "$SETTINGS_FILE" ]]; then
 fi
 
 # Check if hook is already installed
-if jq -e '.hooks.PostToolUse[]? | select(.hooks[]?.command | test("prompt-review-hook"))' "$SETTINGS_FILE" &>/dev/null; then
-  echo "prompt-review hook is already installed."
-  exit 0
-fi
+EXISTING_CMD=$(jq -r '.hooks.PostToolUse[]? | select(.hooks[]?.command | test("prompt-review-hook")) | .hooks[0].command' "$SETTINGS_FILE" 2>/dev/null)
 
-# Add the hook using jq
 TEMP_FILE=$(mktemp)
-jq --arg hook_cmd "$HOOK_PATH" '
-  .hooks //= {} |
-  .hooks.PostToolUse //= [] |
-  .hooks.PostToolUse += [{
-    "matcher": "Bash",
-    "hooks": [{
-      "type": "command",
-      "command": $hook_cmd,
-      "timeout": 5
+if [[ -n "$EXISTING_CMD" ]]; then
+  if [[ "$EXISTING_CMD" == "$HOOK_PATH" ]]; then
+    echo "prompt-review hook is already installed (path up to date)."
+    exit 0
+  fi
+  # Update existing hook path to current location
+  jq --arg old_cmd "$EXISTING_CMD" --arg new_cmd "$HOOK_PATH" '
+    (.hooks.PostToolUse[] | select(.hooks[]?.command == $old_cmd) | .hooks[0].command) = $new_cmd
+  ' "$SETTINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$SETTINGS_FILE"
+  echo "prompt-review hook path updated."
+  echo "  Old: $EXISTING_CMD"
+  echo "  New: $HOOK_PATH"
+else
+  # Add the hook fresh
+  jq --arg hook_cmd "$HOOK_PATH" '
+    .hooks //= {} |
+    .hooks.PostToolUse //= [] |
+    .hooks.PostToolUse += [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "command": $hook_cmd,
+        "timeout": 5
+      }]
     }]
-  }]
-' "$SETTINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$SETTINGS_FILE"
+  ' "$SETTINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$SETTINGS_FILE"
+fi
 
 echo "prompt-review hook installed successfully."
 echo ""
