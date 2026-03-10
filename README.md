@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
+**English** | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md)
+
 **Prompt review for Claude Code. Code review looks at results — prompt review looks at causes.**
 
 ---
