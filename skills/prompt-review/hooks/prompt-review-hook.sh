@@ -35,7 +35,21 @@ fi
 # Resolve current project identity
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 REMOTE_URL=$(git -C "${CWD:-.}" remote get-url origin 2>/dev/null || true)
-PROJECT_ID=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+# Extract owner/repo from any remote URL format:
+#   git@github.com:owner/repo.git, git@github-personal:owner/repo.git,
+#   https://github.com/owner/repo.git, ssh://git@host/owner/repo.git
+PROJECT_ID=$(echo "$REMOTE_URL" | sed -E 's#^.*@[^:]+:##; s#^https?://[^/]+/##; s#^ssh://[^/]+/##; s#\.git$##')
+
+# Recursion guard: skip if current repo IS the prompt-reviews repo
+REVIEW_REPO=$(jq -r '.repo // ""' "$CONFIG_FILE" 2>/dev/null)
+if [[ -n "$PROJECT_ID" && -n "$REVIEW_REPO" ]]; then
+  # Case-insensitive comparison (GitHub repos are case-insensitive)
+  PID_LOWER=$(echo "$PROJECT_ID" | tr '[:upper:]' '[:lower:]')
+  RR_LOWER=$(echo "$REVIEW_REPO" | tr '[:upper:]' '[:lower:]')
+  if [[ "$PID_LOWER" == "$RR_LOWER" ]]; then
+    exit 0
+  fi
+fi
 
 # Project allowlist check
 PROJECTS=$(jq -r '.projects // [] | .[]' "$CONFIG_FILE" 2>/dev/null)

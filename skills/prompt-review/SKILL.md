@@ -340,22 +340,22 @@ fi
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
 
-# Clone the prompt review repo
+# Clone the prompt review repo (full clone to resolve all remote branches)
 # Try HTTPS + token first, fall back to SSH if it fails
 GH_TOKEN=$(gh auth token 2>/dev/null || true)
 if [ -n "$GH_TOKEN" ]; then
-  git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+  git clone --no-single-branch "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
 fi
 if [ ! -d "$ARCHIVE_DIR/.git" ]; then
   # HTTPS failed — try SSH variants
-  git clone "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
-    || git clone "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+    || git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
     || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
 fi
 
 # Switch to the prompt-data branch (create or checkout existing)
 cd "$ARCHIVE_DIR"
-git fetch origin "prompt-data/$BRANCH" 2>/dev/null || true
+git fetch origin 2>/dev/null || true
 if git rev-parse --verify "origin/prompt-data/$BRANCH" &>/dev/null; then
   git checkout -b "prompt-data/$BRANCH" "origin/prompt-data/$BRANCH"
 else
@@ -465,8 +465,21 @@ fi
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
 
-GH_TOKEN=$(gh auth token)
-git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR"
+GH_TOKEN=$(gh auth token 2>/dev/null || true)
+if [ -n "$GH_TOKEN" ]; then
+  git clone --no-single-branch "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+fi
+if [ ! -d "$ARCHIVE_DIR/.git" ]; then
+  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+    || git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+    || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
+fi
+cd "$ARCHIVE_DIR"
+git fetch origin 2>/dev/null || true
+# Checkout the prompt-data branch for this branch if it exists
+if git rev-parse --verify "origin/prompt-data/$BRANCH" &>/dev/null; then
+  git checkout -b "prompt-data/$BRANCH" "origin/prompt-data/$BRANCH"
+fi
 SESSION_DIR="$ARCHIVE_DIR/sessions/$BRANCH"
 
 if [ ! -d "$SESSION_DIR" ] || [ -z "$(ls "$SESSION_DIR"/push-*.md 2>/dev/null)" ]; then
