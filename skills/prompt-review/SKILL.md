@@ -145,6 +145,20 @@ If the user picks option 1 or 3, store the list in the `projects` array. If opti
 
 ---
 
+### Step W-2.5: Language Preference
+
+**Question:** "What language should prompt review content be written in?"
+
+**Options:**
+1. **Auto-detect** (default) — Match the language of your prompts
+2. **English** — Always write in English
+3. **한국어** — Always write in Korean
+4. **Custom** — Enter a language code (e.g. `ja`, `zh`, `de`)
+
+Store in config as `"language": "auto"`, `"language": "en"`, `"language": "ko"`, or the custom code.
+
+---
+
 ### Step W-3: Branch and PR Defaults
 
 **Question:** "How should prompt review branches be named?"
@@ -170,12 +184,14 @@ jq -n \
   --arg base_branch "$BASE_BRANCH" \
   --arg label "$LABEL_NAME" \
   --argjson projects "$PROJECTS_JSON" \
+  --arg language "$LANGUAGE" \
   '{
     repo: $repo,
     branch_prefix: $branch_prefix,
     base_branch: $base_branch,
     label: $label,
     projects: $projects,
+    language: $language,
     created_at: (now | todate)
   }' > "$CONFIG_FILE"
 ```
@@ -235,6 +251,10 @@ This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is 
 
 ### Critical Rules
 
+- **Respect language setting.** Check `language` in config (`~/.claude/prompt-review.config.json`):
+  - `"auto"` (or absent): Detect the dominant language of user prompts in this session. Write Finding, Summary, Improvement Suggestions, delta descriptions, and commit messages in that language.
+  - Explicit code (e.g. `"ko"`, `"en"`, `"ja"`): Use that language for the above content.
+  - Template structure (section headers, table column names, badge labels like "Excellent"/"Good"/"Needs Work"/"Poor", metadata keys) **always remains in English** regardless of language setting.
 - **VERBATIM prompts only.** Paste the EXACT, COMPLETE text of every user prompt. Do NOT summarize, paraphrase, or shorten. Do NOT add "Intent:" labels. If a user typed 5 lines, include all 5 lines.
 - **Follow the template exactly.** Use `${CLAUDE_SKILL_DIR}/templates/push-record.md` as the format reference.
 - **One section per prompt.** Each prompt gets its own `### Prompt N {MINI_BADGE}` block with a fenced code block containing the raw text, followed by per-prompt mini-scores: `<sub>Goal G/20 · Exit E/10 · Scope S/15 · Context C/15</sub>`.
@@ -323,6 +343,7 @@ fi
 
 REPO=$(jq -r '.repo' "$CONFIG_FILE")
 BASE_BRANCH=$(jq -r '.base_branch' "$CONFIG_FILE")
+LANGUAGE=$(jq -r '.language // "auto"' "$CONFIG_FILE")
 BRANCH=$(git branch --show-current 2>/dev/null)
 BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._/-]//g' | head -c 200)
 if [ -z "$BRANCH" ]; then
@@ -377,8 +398,17 @@ PUSH_FILE="$SESSION_DIR/push-$(printf '%03d' $PUSH_NUM).md"
 # 3. Run: git diff --stat $(git merge-base HEAD origin/$BASE_BRANCH)..HEAD
 # 4. Score all prompts against the 8 criteria (see Step C-3 scoring table)
 # 5. Format everything per ${CLAUDE_SKILL_DIR}/templates/push-record.md
-# 6. Write the result to $PUSH_FILE using the Write tool or cat <<'EOF' > "$PUSH_FILE"
-# 7. Then continue with the size check and git commit below.
+# 6. Apply language setting ($LANGUAGE):
+#    - "auto": detect the dominant language of user prompts; write Finding,
+#      Summary, Improvement Suggestions, delta descriptions, and the commit
+#      message topic in that language.
+#    - Explicit code (e.g. "ko"): use that language for the above content.
+#    - Section headers, table column names, and badge labels stay in English.
+# 7. Write the result to $PUSH_FILE using the Write tool or cat <<'EOF' > "$PUSH_FILE"
+# 8. Set COMMIT_SUMMARY to a concise one-line summary of the session's work
+#    (e.g. "add circle diameter endpoint and negative input auto-correction").
+#    This becomes the commit message. Write in the $LANGUAGE setting.
+# 9. Then continue with the size check and git commit below.
 # ===
 
 # Size check: abort if push file exceeds 1 MB
@@ -391,7 +421,11 @@ if [ -f "$PUSH_FILE" ]; then
 fi
 
 git add .
-git commit -m "push: $BRANCH push #$PUSH_NUM ($DATE)"
+# COMMIT_SUMMARY is set by the AI generation step above.
+# It should be a concise one-line summary of what this session accomplished
+# (e.g. "add circle diameter endpoint and negative input auto-correction").
+# Write in the language determined by $LANGUAGE setting.
+git commit -m "$COMMIT_SUMMARY (#$PUSH_NUM)"
 git push origin "prompt-data/$BRANCH"
 
 # Update state file with last push timestamp (merge to preserve dismissed_projects)
@@ -433,6 +467,7 @@ REPO=$(jq -r '.repo' "$CONFIG_FILE")
 BASE_BRANCH=$(jq -r '.base_branch' "$CONFIG_FILE")
 BRANCH_PREFIX=$(jq -r '.branch_prefix' "$CONFIG_FILE")
 LABEL=$(jq -r '.label // "prompt-review"' "$CONFIG_FILE")
+LANGUAGE=$(jq -r '.language // "auto"' "$CONFIG_FILE")
 
 # Check repo visibility
 IS_PRIVATE=$(gh repo view "$REPO" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "unknown")
@@ -517,6 +552,8 @@ Score all collected prompts against 8 criteria in a single LLM call.
 
 **Improvement suggestions:** For any criterion scoring below 70% of its max, generate a concrete "suggested rewrite fragment" — not abstract advice, but actual text the author could have used.
 
+**Language:** Apply the `$LANGUAGE` setting when writing Finding text, Improvement Suggestions (description + rewrite fragment), and delta descriptions. If `"auto"`, detect the dominant language of the scored prompts. Section headers, column names, and badge labels stay in English.
+
 ---
 
 ### Step C-4: Secret Scanning (Mandatory Gate)
@@ -537,7 +574,11 @@ If secrets detected, ask user to redact, confirm false positive, or abort.
 
 **PR Title:** `[Prompt Review] {date} — {topic} — @{author}`
 
+The `{topic}` portion of the PR title should be written in the configured language (auto-detected or explicit). The `[Prompt Review]` prefix, date, and `@{author}` remain in English.
+
 **PR Body:** Follow the template at `${CLAUDE_SKILL_DIR}/templates/prompt-review.md`. See the filled example at `${CLAUDE_SKILL_DIR}/templates/prompt-review-example.md` for reference.
+
+Apply the `$LANGUAGE` setting: write Finding, Summary, Improvement Suggestions, Prompt Sequence delta descriptions, and Code Impact summaries in the configured language. Section headers, table column names, and badge labels remain in English.
 
 Use session ID `${CLAUDE_SESSION_ID}` in the metadata section.
 
@@ -564,7 +605,9 @@ mkdir -p "sessions/$PROJECT_BRANCH"
 
 echo "  [4/5] Pushing..."
 git add .
-git commit -m "prompt-review: $PROJECT_BRANCH"
+# COMMIT_SUMMARY is set during PR content generation (Step C-5).
+# One-line summary of what the session accomplished, in $LANGUAGE.
+git commit -m "$COMMIT_SUMMARY"
 git push origin "$BRANCH"
 
 echo "  [5/5] Creating PR..."
@@ -665,6 +708,7 @@ Config file: `~/.claude/prompt-review.config.json`
   "base_branch": "main",
   "label": "prompt-review",
   "projects": ["owner/project-a", "owner/project-b"],
+  "language": "auto",
   "created_at": "2026-03-08T12:00:00Z"
 }
 ```
@@ -676,6 +720,7 @@ Config file: `~/.claude/prompt-review.config.json`
 | `base_branch` | Yes | Base branch in the review repo |
 | `label` | Yes | Default label applied to prompt review PRs |
 | `projects` | No | Allowlist of `owner/repo` projects. If set, only pushes from these projects trigger capture. If empty or omitted, **all projects** trigger capture. |
+| `language` | No | Language for generated content. `"auto"` (default) detects the dominant language of user prompts. Explicit codes like `"en"`, `"ko"`, `"ja"`, `"zh"` force that language. Template structure (headers, column names, badges) always remains in English. |
 
 ---
 
