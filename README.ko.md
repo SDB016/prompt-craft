@@ -51,7 +51,7 @@ git push         # 프롬프트 자동 캡처
 | `/review` | 팀 피드백을 위한 프롬프트 리뷰 PR 생성 |
 | `/score` | 로컬 스코어링 + 개선 팁 (`--verbose`) |
 | `/insights` | 점수 트렌드, 고점수 패턴, 세션 비교 |
-| `/coach` | 작업 전 프롬프트 가이드 + 재사용 템플릿 |
+| `/prompt-guide` | 작업 전 프롬프트 가이드 + 재사용 템플릿 |
 | `/setup-project` | 프로젝트별 캡처 설정 (활성화, 비활성화, 커스텀 저장소) |
 
 ### review
@@ -73,12 +73,12 @@ git push         # 프롬프트 자동 캡처
 | `/insights patterns` | 고점수 프롬프트 패턴 추출 |
 | `/insights compare #1 #2` | 두 리뷰 세션 비교 |
 
-### coach
+### prompt-guide
 
 | 명령어 | 동작 |
 |--------|------|
-| `/coach` | 맥락 기반 프롬프트 작성 팁 |
-| `/coach template save/list/use/delete` | 재사용 템플릿 관리 |
+| `/prompt-guide` | 맥락 기반 프롬프트 작성 팁 |
+| `/prompt-guide template save/list/use/delete` | 재사용 템플릿 관리 |
 
 ### setup-project
 

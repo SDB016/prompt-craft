@@ -7,7 +7,7 @@
 | **review** | `/review` | Create prompt review PR (core flow) |
 | **score** | `/score` | Local scoring, no PR |
 | **insights** | `/insights` | Trends, patterns, comparison |
-| **coach** | `/coach` | Pre-task tips + templates |
+| **prompt-guide** | `/prompt-guide` | Pre-task tips + templates |
 | **setup** | `/setup` | First-time configuration |
 | **setup-project** | `/setup-project` | Per-project capture settings |
 
@@ -40,15 +40,15 @@
 /insights compare #1 #2    # side-by-side PR comparison
 ```
 
-## coach
+## prompt-guide
 
 ```bash
-/coach                     # contextual prompt tips
-/coach feature             # tips for feature task
-/coach template save X     # save a template
-/coach template list       # list templates
-/coach template use X      # load a template
-/coach template delete X   # remove a template
+/prompt-guide                     # contextual prompt tips
+/prompt-guide feature             # tips for feature task
+/prompt-guide template save X     # save a template
+/prompt-guide template list       # list templates
+/prompt-guide template use X      # load a template
+/prompt-guide template delete X   # remove a template
 ```
 
 ## Scoring (8 criteria, 100 points)

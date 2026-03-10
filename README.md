@@ -51,7 +51,7 @@ That's it. `/setup` asks for your review repo and auto-configures everything els
 | `/review` | Create prompt review PR for team feedback |
 | `/score` | Local scoring + improvement tips (`--verbose`) |
 | `/insights` | Score trends, high-scoring patterns, session comparison |
-| `/coach` | Pre-task prompt guide + reusable templates |
+| `/prompt-guide` | Pre-task prompt guide + reusable templates |
 | `/setup-project` | Per-project capture settings (enable, disable, custom repo) |
 
 ### review
@@ -73,12 +73,12 @@ That's it. `/setup` asks for your review repo and auto-configures everything els
 | `/insights patterns` | Extract high-scoring prompt patterns |
 | `/insights compare #1 #2` | Compare two review sessions |
 
-### coach
+### prompt-guide
 
 | Command | Action |
 |---------|--------|
-| `/coach` | Contextual prompt writing tips |
-| `/coach template save/list/use/delete` | Manage reusable templates |
+| `/prompt-guide` | Contextual prompt writing tips |
+| `/prompt-guide template save/list/use/delete` | Manage reusable templates |
 
 ### setup-project
 

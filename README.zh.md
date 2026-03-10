@@ -51,7 +51,7 @@ git push         # 提示词自动捕获
 | `/review` | 创建提示词审查 PR 供团队反馈 |
 | `/score` | 本地评分 + 改进建议 (`--verbose`) |
 | `/insights` | 分数趋势、高分模式、会话比较 |
-| `/coach` | 任务前提示词指南 + 可复用模板 |
+| `/prompt-guide` | 任务前提示词指南 + 可复用模板 |
 | `/setup-project` | 项目级捕获设置（启用、禁用、自定义仓库） |
 
 ### review
@@ -73,12 +73,12 @@ git push         # 提示词自动捕获
 | `/insights patterns` | 提取高分提示词模式 |
 | `/insights compare #1 #2` | 比较两个审查会话 |
 
-### coach
+### prompt-guide
 
 | 命令 | 动作 |
 |------|------|
-| `/coach` | 基于上下文的提示词编写建议 |
-| `/coach template save/list/use/delete` | 管理可复用模板 |
+| `/prompt-guide` | 基于上下文的提示词编写建议 |
+| `/prompt-guide template save/list/use/delete` | 管理可复用模板 |
 
 ### setup-project
 

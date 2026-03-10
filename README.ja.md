@@ -51,7 +51,7 @@ git push         # プロンプト自動キャプチャ
 | `/review` | チームフィードバック用プロンプトレビューPR作成 |
 | `/score` | ローカルスコアリング + 改善ヒント (`--verbose`) |
 | `/insights` | スコアトレンド、高スコアパターン、セッション比較 |
-| `/coach` | タスク前プロンプトガイド + 再利用テンプレート |
+| `/prompt-guide` | タスク前プロンプトガイド + 再利用テンプレート |
 | `/setup-project` | プロジェクト別キャプチャ設定（有効化、無効化、カスタムリポジトリ） |
 
 ### review
@@ -73,12 +73,12 @@ git push         # プロンプト自動キャプチャ
 | `/insights patterns` | 高スコアプロンプトパターン抽出 |
 | `/insights compare #1 #2` | 2つのレビューセッション比較 |
 
-### coach
+### prompt-guide
 
 | コマンド | 動作 |
 |----------|------|
-| `/coach` | コンテキストベースのプロンプト作成ヒント |
-| `/coach template save/list/use/delete` | 再利用テンプレート管理 |
+| `/prompt-guide` | コンテキストベースのプロンプト作成ヒント |
+| `/prompt-guide template save/list/use/delete` | 再利用テンプレート管理 |
 
 ### setup-project
 

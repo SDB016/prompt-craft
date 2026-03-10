@@ -1,6 +1,6 @@
 ---
-name: coach
-description: Pre-task prompt coaching and reusable template management. Use when asked for prompt tips, writing advice, or template management.
+name: prompt-guide
+description: Pre-task prompt guide and reusable template management. Use when asked for prompt tips, writing advice, or template management.
 argument-hint: "[template save|list|use|delete [name]]"
 user-invocable: true
 allowed-tools:
@@ -15,9 +15,9 @@ allowed-tools:
   - Bash(grep *)
 ---
 
-# Prompt Coach — Tips & Templates
+# Prompt Guide — Tips & Templates
 
-Pre-task prompt coaching and reusable template management. Get contextual advice before starting work, or save and reuse high-scoring prompt patterns.
+Pre-task prompt guide and reusable template management. Get contextual advice before starting work, or save and reuse high-scoring prompt patterns.
 
 > "Better prompts start before you type the first word."
 
@@ -157,7 +157,7 @@ Save a new prompt template.
 
 1. The template name is required. If missing, print an error:
    ```
-   Error: Template name required. Usage: /coach template save [name]
+   Error: Template name required. Usage: /prompt-guide template save [name]
    ```
 2. Ensure the storage directory exists:
    ```bash
@@ -205,7 +205,7 @@ List all saved prompt templates.
 1. Use Glob to find all `~/.claude/prompt-templates/*.md` files.
 2. If no templates found, print:
    ```
-   No saved templates found. Use: /coach template save [name]
+   No saved templates found. Use: /prompt-guide template save [name]
    ```
 3. For each template file, use Bash to extract the frontmatter fields `name`, `score`, `task-type`, and `author`:
    ```bash
@@ -219,7 +219,7 @@ List all saved prompt templates.
      <name>                <score>/100  <task-type>  @<author>
      ...
 
-   Use: /coach template use <name>
+   Use: /prompt-guide template use <name>
    ```
    - Left-align template names, pad to 24 characters
    - Right-align scores in `<score>/100` format
@@ -231,11 +231,11 @@ Load a template and display it with placeholders ready to fill in.
 
 1. The template name is required. If missing, print an error:
    ```
-   Error: Template name required. Usage: /coach template use [name]
+   Error: Template name required. Usage: /prompt-guide template use [name]
    ```
 2. Check if the template file exists at `~/.claude/prompt-templates/<name>.md`. If not, print:
    ```
-   Error: Template "<name>" not found. Run /coach template list to see available templates.
+   Error: Template "<name>" not found. Run /prompt-guide template list to see available templates.
    ```
 3. Use Read to load the full contents of `~/.claude/prompt-templates/<name>.md`.
 4. Print the template body (everything after the closing `---` of the frontmatter).
@@ -260,11 +260,11 @@ Remove a saved template.
 
 1. The template name is required. If missing, print an error:
    ```
-   Error: Template name required. Usage: /coach template delete [name]
+   Error: Template name required. Usage: /prompt-guide template delete [name]
    ```
 2. Check if the template file exists at `~/.claude/prompt-templates/<name>.md`. If not, print:
    ```
-   Error: Template "<name>" not found. Run /coach template list to see available templates.
+   Error: Template "<name>" not found. Run /prompt-guide template list to see available templates.
    ```
 3. Use Bash to remove the file:
    ```bash
@@ -281,7 +281,7 @@ If the subcommand is not one of `save`, `list`, `use`, or `delete`, print:
 ```
 Unknown subcommand: <subcommand>
 
-Usage: /coach template [save|list|use|delete] [name]
+Usage: /prompt-guide template [save|list|use|delete] [name]
 
   save [name]    Save a new prompt template scaffold
   list           Show all saved templates
@@ -307,10 +307,10 @@ Fix:   [exact command to resolve]
 
 | Error | Message |
 |-------|---------|
-| Template name missing | `Error: Template name required.` / `Cause: Save/use/delete needs a template name.` / `Fix: Usage: /coach template [save\|use\|delete] [name]` |
-| Template not found | `Error: Template "{name}" not found.` / `Cause: No template with that name exists.` / `Fix: Run /coach template list to see available templates.` |
-| No templates saved | `No saved templates found. Use: /coach template save [name]` |
-| Unknown subcommand | `Error: Unknown subcommand "{cmd}".` / `Cause: Valid subcommands are save, list, use, delete.` / `Fix: Usage: /coach template [save\|list\|use\|delete] [name]` |
+| Template name missing | `Error: Template name required.` / `Cause: Save/use/delete needs a template name.` / `Fix: Usage: /prompt-guide template [save\|use\|delete] [name]` |
+| Template not found | `Error: Template "{name}" not found.` / `Cause: No template with that name exists.` / `Fix: Run /prompt-guide template list to see available templates.` |
+| No templates saved | `No saved templates found. Use: /prompt-guide template save [name]` |
+| Unknown subcommand | `Error: Unknown subcommand "{cmd}".` / `Cause: Valid subcommands are save, list, use, delete.` / `Fix: Usage: /prompt-guide template [save\|list\|use\|delete] [name]` |
 
 ---
 
@@ -320,4 +320,4 @@ Fix:   [exact command to resolve]
 - **Context-driven advice**: Tips are tailored to the actual project state (branch name, recent commits, file structure) — not generic placeholders.
 - **Reusable patterns**: High-scoring prompts from past sessions can be saved as templates and reused, reducing prompt-writing overhead on future tasks.
 - **Non-destructive by default**: The coaching path never modifies files. Only the `template save` and `template delete` subcommands write or remove files.
-- **Single entry point**: Both `prompt-tips` and `prompt-template` functionality is now available under `/coach`, simplifying the skill surface. Use `/coach` for tips, `/coach template` for template management, `/review` for prompt review, and `/score` for scoring prompts.
+- **Single entry point**: Both `prompt-tips` and `prompt-template` functionality is now available under `/prompt-guide`, simplifying the skill surface. Use `/prompt-guide` for tips, `/prompt-guide template` for template management, `/review` for prompt review, and `/score` for scoring prompts.

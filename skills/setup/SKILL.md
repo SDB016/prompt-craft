@@ -145,7 +145,7 @@ What happens next:
   1. git push     → Prompts auto-captured to prompt repo (commit only)
   2. gh pr create → Prompt review PR created with scoring (or run /review)
   3. /score       → Check prompt quality locally before pushing
-  4. /coach       → Get prompt writing tips before starting a task
+  4. /prompt-guide → Get prompt writing tips before starting a task
   5. /insights    → View score trends after multiple sessions
 
 Note: Push hooks activate after restarting Claude Code (if this is your first install).
