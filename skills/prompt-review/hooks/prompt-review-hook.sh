@@ -31,6 +31,23 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 0
 fi
 
+# Project allowlist: skip if current project is not in the allowed list
+PROJECTS=$(jq -r '.projects // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
+if [[ -n "$PROJECTS" ]]; then
+  # Get current project's remote URL and extract owner/repo
+  CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
+  REMOTE_URL=$(git -C "${CWD:-.}" remote get-url origin 2>/dev/null || true)
+  # Normalize: extract "owner/repo" from HTTPS or SSH URL
+  PROJECT_ID=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+  if [[ -z "$PROJECT_ID" ]]; then
+    exit 0
+  fi
+  # Check if project is in the allowlist
+  if ! echo "$PROJECTS" | grep -qxF "$PROJECT_ID"; then
+    exit 0
+  fi
+fi
+
 # Detect: git push (anchored to command start or after shell operators)
 # Excludes --dry-run and --delete variants
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \

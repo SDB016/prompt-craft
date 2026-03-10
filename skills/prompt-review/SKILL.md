@@ -113,7 +113,28 @@ If `REPO_IS_PRIVATE=false` (public repo), show warning:
 
 ---
 
-### Step W-2: Branch and PR Defaults
+### Step W-2: Select Projects
+
+**Question:** "Which projects should trigger prompt capture? (format: owner/repo, comma-separated)"
+
+Detect the current project automatically:
+
+```bash
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
+CURRENT_PROJECT=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+echo "CURRENT_PROJECT=$CURRENT_PROJECT"
+```
+
+**Options:**
+1. **This project only** (`{CURRENT_PROJECT}`) — Capture prompts only in this repo
+2. **All projects** — Capture prompts in every project (no filtering)
+3. **Custom list** — Enter a comma-separated list of `owner/repo` values
+
+If the user picks option 1 or 3, store the list in the `projects` array. If option 2, set `projects` to `[]` (empty array = no filtering).
+
+---
+
+### Step W-3: Branch and PR Defaults
 
 **Question:** "How should prompt review branches be named?"
 
@@ -126,7 +147,7 @@ Then ask for base branch (`main` or `master` or custom).
 
 ---
 
-### Step W-3: Write Configuration
+### Step W-4: Write Configuration
 
 ```bash
 CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
@@ -137,14 +158,21 @@ jq -n \
   --arg branch_prefix "$BRANCH_PREFIX" \
   --arg base_branch "$BASE_BRANCH" \
   --arg label "$LABEL_NAME" \
+  --argjson projects "$PROJECTS_JSON" \
   '{
     repo: $repo,
     branch_prefix: $branch_prefix,
     base_branch: $base_branch,
     label: $label,
+    projects: $projects,
     created_at: (now | todate)
   }' > "$CONFIG_FILE"
 ```
+
+Where `$PROJECTS_JSON` is:
+- `[]` if user chose "All projects"
+- `["owner/repo-a"]` if user chose "This project only"
+- `["owner/repo-a", "owner/repo-b"]` if user chose "Custom list"
 
 Display confirmation:
 ```
@@ -598,9 +626,18 @@ Config file: `~/.claude/prompt-review.config.json`
   "branch_prefix": "prompt-review/",
   "base_branch": "main",
   "label": "prompt-review",
+  "projects": ["owner/project-a", "owner/project-b"],
   "created_at": "2026-03-08T12:00:00Z"
 }
 ```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `repo` | Yes | Review repository (where prompt PRs are created) |
+| `branch_prefix` | Yes | Branch name prefix for prompt review branches |
+| `base_branch` | Yes | Base branch in the review repo |
+| `label` | Yes | Default label applied to prompt review PRs |
+| `projects` | No | Allowlist of `owner/repo` projects. If set, only pushes from these projects trigger capture. If empty or omitted, **all projects** trigger capture. |
 
 ---
 
