@@ -352,39 +352,34 @@ if [ -z "$BRANCH" ]; then
 fi
 DATE=$(date +%Y-%m-%d)
 
-# Non-blocking visibility warning
-IS_PRIVATE=$(gh repo view "$REPO" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "unknown")
-if [ "$IS_PRIVATE" = "false" ]; then
-  echo "Warning: prompt-review repo '$REPO' is public. Session data will be publicly visible." >&2
-fi
-
-ARCHIVE_DIR="$(mktemp -d)"
-trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
-
-# Clone the prompt review repo (full clone to resolve all remote branches)
-# Try HTTPS + token first, fall back to SSH if it fails
+# Resolve clone URL (lightweight ls-remote probe, no full clone)
+CLONE_URL=""
 GH_TOKEN=$(gh auth token 2>/dev/null || true)
 if [ -n "$GH_TOKEN" ]; then
-  git clone --no-single-branch "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+  HTTPS_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+  git ls-remote "$HTTPS_URL" HEAD &>/dev/null && CLONE_URL="$HTTPS_URL"
 fi
-if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  # HTTPS failed — try SSH variants (clean dir between attempts)
-  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
-  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
-fi
-if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
-  git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
-    || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
+[ -z "$CLONE_URL" ] && git ls-remote "git@github.com:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github.com:${REPO}.git"
+[ -z "$CLONE_URL" ] && git ls-remote "git@github-personal:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github-personal:${REPO}.git"
+[ -z "$CLONE_URL" ] && { echo "Error: Cannot access $REPO via HTTPS or SSH"; exit 0; }
+
+# Check if prompt-data branch exists remotely
+REMOTE_BRANCH="prompt-data/$BRANCH"
+if git ls-remote --heads "$CLONE_URL" "$REMOTE_BRANCH" 2>/dev/null | grep -q .; then
+  TARGET_BRANCH="$REMOTE_BRANCH"
+else
+  TARGET_BRANCH="$BASE_BRANCH"
 fi
 
-# Switch to the prompt-data branch (create or checkout existing)
+# Shallow clone of only the needed branch
+ARCHIVE_DIR="$(mktemp -d)"
+trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
+git clone --depth 1 --branch "$TARGET_BRANCH" "$CLONE_URL" "$ARCHIVE_DIR"
 cd "$ARCHIVE_DIR"
-git fetch origin 2>/dev/null || true
-if git rev-parse --verify "origin/prompt-data/$BRANCH" &>/dev/null; then
-  git checkout -b "prompt-data/$BRANCH" "origin/prompt-data/$BRANCH"
-else
-  git checkout -b "prompt-data/$BRANCH" "origin/$BASE_BRANCH"
+
+# If we cloned base branch, create the prompt-data branch
+if [ "$TARGET_BRANCH" = "$BASE_BRANCH" ]; then
+  git checkout -b "$REMOTE_BRANCH"
 fi
 
 # Create session directory and determine push number
@@ -501,27 +496,32 @@ if [ -z "$BRANCH" ]; then
   echo "Error: Branch name is empty or invalid after sanitization." >&2
   exit 1
 fi
-ARCHIVE_DIR="$(mktemp -d)"
-trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
-
+# Resolve clone URL (lightweight ls-remote probe)
+CLONE_URL=""
 GH_TOKEN=$(gh auth token 2>/dev/null || true)
 if [ -n "$GH_TOKEN" ]; then
-  git clone --no-single-branch "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+  HTTPS_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+  git ls-remote "$HTTPS_URL" HEAD &>/dev/null && CLONE_URL="$HTTPS_URL"
 fi
-if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
-  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+[ -z "$CLONE_URL" ] && git ls-remote "git@github.com:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github.com:${REPO}.git"
+[ -z "$CLONE_URL" ] && git ls-remote "git@github-personal:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github-personal:${REPO}.git"
+[ -z "$CLONE_URL" ] && { echo "Error: Cannot access $REPO via HTTPS or SSH"; exit 0; }
+
+# Check if prompt-data branch exists remotely
+REMOTE_BRANCH="prompt-data/$BRANCH"
+if git ls-remote --heads "$CLONE_URL" "$REMOTE_BRANCH" 2>/dev/null | grep -q .; then
+  TARGET_BRANCH="$REMOTE_BRANCH"
+else
+  TARGET_BRANCH="$BASE_BRANCH"
 fi
-if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
-  git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
-    || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
-fi
+
+# Shallow clone of only the needed branch
+ARCHIVE_DIR="$(mktemp -d)"
+trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
+git clone --depth 1 --branch "$TARGET_BRANCH" "$CLONE_URL" "$ARCHIVE_DIR"
 cd "$ARCHIVE_DIR"
-git fetch origin 2>/dev/null || true
-# Checkout the prompt-data branch for this branch if it exists
-if git rev-parse --verify "origin/prompt-data/$BRANCH" &>/dev/null; then
-  git checkout -b "prompt-data/$BRANCH" "origin/prompt-data/$BRANCH"
+if [ "$TARGET_BRANCH" = "$BASE_BRANCH" ]; then
+  git checkout -b "$REMOTE_BRANCH"
 fi
 SESSION_DIR="$ARCHIVE_DIR/sessions/$BRANCH"
 
@@ -595,24 +595,23 @@ Use session ID `${CLAUDE_SESSION_ID}` in the metadata section.
 ### Step C-6: Create the PR
 
 ```bash
-ARCHIVE_DIR="$(mktemp -d)"
 PR_BODY_FILE="$(mktemp)"
-trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR" "$PR_BODY_FILE"' EXIT
 
 echo "  [1/5] Cloning review repository..."
+# Resolve clone URL (lightweight ls-remote probe)
+CLONE_URL=""
 GH_TOKEN=$(gh auth token 2>/dev/null || true)
 if [ -n "$GH_TOKEN" ]; then
-  git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+  HTTPS_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+  git ls-remote "$HTTPS_URL" HEAD &>/dev/null && CLONE_URL="$HTTPS_URL"
 fi
-if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
-  git clone --depth 1 "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
-fi
-if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
-  git clone --depth 1 "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
-    || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
-fi
+[ -z "$CLONE_URL" ] && git ls-remote "git@github.com:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github.com:${REPO}.git"
+[ -z "$CLONE_URL" ] && git ls-remote "git@github-personal:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github-personal:${REPO}.git"
+[ -z "$CLONE_URL" ] && { echo "Error: Cannot access $REPO via HTTPS or SSH"; exit 0; }
+
+ARCHIVE_DIR="$(mktemp -d)"
+trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR" "$PR_BODY_FILE"' EXIT
+git clone --depth 1 "$CLONE_URL" "$ARCHIVE_DIR"
 
 echo "  [2/5] Creating branch..."
 cd "$ARCHIVE_DIR"
