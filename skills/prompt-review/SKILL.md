@@ -189,6 +189,7 @@ This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is 
 - **Capture user decisions.** When AskUserQuestion selections follow a prompt, add a `### Decisions after Prompt N` block with a table of question → selected answer pairs.
 - **Score all prompts.** Evaluate the entire prompt sequence against 8 criteria (see Step C-3 scoring table). Include the Scorecard table and grade badge in the push record header.
 - **Suggest improvements.** For any criterion below 70% of its max, write a concrete "Instead of / Try" rewrite fragment. Omit the Improvement Suggestions section entirely if all criteria score well.
+- **Analyze Prompt Gaps (Gap 2).** When a prompt defect led to a code defect, frame it as "Prompt Gap: {prompt deficiency} → {code consequence}". Example: "Missing exit criteria → Claude modified db/sessions.ts beyond stated scope". This is how AI code review is integrated — not as a separate section, but as cause→effect chains linking prompt quality to code outcomes.
 - **Flag constraint violations.** In the Code Impact table, mark files that were changed against stated constraints with "**Flagged: constraint violation**".
 
 ### Output Format

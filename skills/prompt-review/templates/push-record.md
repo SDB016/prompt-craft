@@ -69,17 +69,35 @@
 <!-- Populated ONLY for criteria scoring below 70% of their max.
      Omit this section entirely if all criteria score well.
      Provide concrete "Instead of / Try" rewrites, not abstract advice.
-     When a prompt defect led to a code issue, frame as "Prompt Gap":
-       "Missing exit criteria → Claude made scope-exceeding changes" -->
+
+     TWO TYPES OF SUGGESTIONS:
+
+     1. Prompt Quality (Gap 1: Intent → Prompt)
+        When the prompt itself was unclear, missing context, or poorly scoped.
+        Frame: "The prompt lacked X → Claude had to guess Y"
+
+     2. Prompt Gap (Gap 2: Prompt → Code)
+        When a prompt defect led to a code defect.
+        Frame: "Missing X in prompt → Claude produced Y in code"
+        Example: "Missing exit criteria → Claude made scope-exceeding changes in db/sessions.ts"
+        Always link the prompt deficiency to the specific code outcome.
+
+     Include BOTH types when applicable. Prompt Gap analysis is how AI code review
+     is integrated — not as a separate section, but as cause→effect chains. -->
 
 ### {{CRITERION}} (scored {{SCORE}}/{{MAX}})
 > {{WHAT_WAS_MISSING}}
+
+**Prompt Gap:** {{PROMPT_DEFICIENCY}} → {{CODE_CONSEQUENCE}}
 
 **Suggested rewrite:**
 ```
 Instead of: "{{ORIGINAL}}"
 Try:        "{{IMPROVED}}"
 ```
+
+<!-- Prompt Gap line is optional — include only when the prompt defect
+     caused a measurable code defect. Not every low score has a code consequence. -->
 
 ---
 
