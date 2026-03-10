@@ -16,21 +16,21 @@
 /plugin install prompt-craft
 ```
 
-**步骤2: 设置（仅首次）**
+**步骤2: 设置（安装后立即执行）**
 ```
-/review          # 首次运行：询问审查仓库 → 自动完成所有配置
+/setup           # 询问审查仓库 → 自动完成所有配置
 ```
 
 **步骤3: 使用**
 ```
-git push         # 提示词自动捕获（设置完成后）
+git push         # 提示词自动捕获
 /review          # 创建提示词审查 PR
 /score           # 本地评分（不创建 PR）
 ```
 
-首次 `/review` 即是设置 — 它会询问你的审查仓库并自动配置其余一切。之后，每次 `git push` 都会自动捕获提示词，`gh pr create` 时进行评分。
+`/setup` 会询问你的审查仓库并自动配置其余一切。之后，每次 `git push` 都会自动捕获提示词，`gh pr create` 时进行评分。
 
-> **注意：** 首次安装后需重启 Claude Code 以激活 push hook。
+> **注意：** 首次安装后需重启 Claude Code 以激活 push hook。如果跳过 `/setup`，每次会话开始时会显示提醒。
 
 ---
 

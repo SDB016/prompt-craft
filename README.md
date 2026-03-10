@@ -16,21 +16,21 @@
 /plugin install prompt-craft
 ```
 
-**Step 2: Setup (first time only)**
+**Step 2: Setup (right after install)**
 ```
-/review          # First run: asks for your review repo → auto-configures everything
+/setup           # Asks for your review repo → auto-configures everything
 ```
 
 **Step 3: Use**
 ```
-git push         # Prompts auto-captured (after setup)
+git push         # Prompts auto-captured
 /review          # Create prompt review PR
 /score           # Local scoring (no PR)
 ```
 
-That's it. The first `/review` is also the setup — it asks for your review repo and auto-configures everything else. After that, prompts are automatically captured on every `git push` and scored on `gh pr create`.
+That's it. `/setup` asks for your review repo and auto-configures everything else. After that, prompts are automatically captured on every `git push` and scored on `gh pr create`.
 
-> **Note:** Restart Claude Code after first install for the push hook to activate.
+> **Note:** Restart Claude Code after first install for the push hook to activate. If you skip `/setup`, you'll be reminded on each session start.
 
 ---
 
