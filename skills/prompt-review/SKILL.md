@@ -36,8 +36,19 @@ This means:
 - If `$ARGUMENTS` contains `--push` → jump to **[PUSH HOOK]**
 - If `$ARGUMENTS` contains `--setup` → jump to **[SETUP WIZARD]**
 - If `$ARGUMENTS` contains `--status` → jump to **[STATUS DISPLAY]**
+- If `$ARGUMENTS` matches project management intent → jump to **[PROJECT MANAGEMENT]**
 - If no config exists at `~/.claude/prompt-review.config.json` → run **[SETUP WIZARD]** first
 - Otherwise → proceed to **[CAPTURE FLOW]**
+
+### Project Management Intent Detection
+
+Detect these patterns in `$ARGUMENTS` (natural language, case-insensitive):
+
+| Intent | Trigger phrases | Action |
+|--------|----------------|--------|
+| **Add project** | "add project", "add this project", "track this", "enable here", "이 프로젝트 추가" | → [PROJECT MANAGEMENT] add |
+| **Remove project** | "remove project", "stop tracking", "disable", "이 프로젝트 제거" | → [PROJECT MANAGEMENT] remove |
+| **List projects** | "list projects", "show projects", "which projects", "projects", "프로젝트 목록" | → [PROJECT MANAGEMENT] list |
 
 ---
 
@@ -638,6 +649,86 @@ Config file: `~/.claude/prompt-review.config.json`
 | `base_branch` | Yes | Base branch in the review repo |
 | `label` | Yes | Default label applied to prompt review PRs |
 | `projects` | No | Allowlist of `owner/repo` projects. If set, only pushes from these projects trigger capture. If empty or omitted, **all projects** trigger capture. |
+
+---
+
+## [PROJECT MANAGEMENT] — Add, Remove, List Projects
+
+Manages which projects trigger prompt capture. The `projects` array in config controls the allowlist.
+
+### List Projects
+
+```bash
+CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
+PROJECTS=$(jq -r '.projects // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
+CURRENT=$(git remote get-url origin 2>/dev/null | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+```
+
+Display:
+```
+Prompt Craft — Tracked Projects
+
+  1. owner/project-a
+  2. owner/project-b
+  → Current project: owner/current-repo (tracked ✓ / not tracked ✗)
+
+Empty list means all projects are tracked.
+```
+
+### Add Project
+
+Detect the current project automatically:
+
+```bash
+CURRENT=$(git remote get-url origin 2>/dev/null | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+```
+
+If the user said "add this project" without specifying a name, use `$CURRENT`. If they specified a name (e.g., "add myorg/myrepo"), use that.
+
+**Question (if ambiguous):** "Which project should I add? I see you're in `{CURRENT}`."
+
+**Options:**
+1. **This project** (`{CURRENT}`)
+2. **Enter a different project**
+
+Then add to config:
+
+```bash
+jq --arg p "$PROJECT" '.projects = ((.projects // []) + [$p] | unique)' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" \
+  && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+```
+
+Confirm: "Added `{PROJECT}` to prompt tracking. Prompts will be captured on next push."
+
+### Remove Project
+
+Show the current list and ask which to remove:
+
+**Question:** "Which project should I stop tracking?"
+
+**Options:** (dynamically generated from `projects` array + "All — disable filtering")
+
+Then remove from config:
+
+```bash
+jq --arg p "$PROJECT" '.projects = [.projects[] | select(. != $p)]' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" \
+  && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+```
+
+Confirm: "Removed `{PROJECT}` from prompt tracking."
+
+### Just-in-Time Opt-in
+
+When the push hook detects a project NOT in the allowlist, it triggers a conversational prompt instead of silently skipping. The user sees:
+
+**Question:** "I noticed you pushed from `{PROJECT}`. Enable prompt capture for this project?"
+
+**Options:**
+1. **Yes, enable** — Adds to `projects` array, then runs capture
+2. **Not now** — Stores dismissal timestamp in `~/.claude/prompt-review-state.json` (re-asks after 7 days)
+3. **Never for this project** — Stores permanent dismissal
+
+This means the project list builds organically through normal development workflow. No upfront setup required.
 
 ---
 

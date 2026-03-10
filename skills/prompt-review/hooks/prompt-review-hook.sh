@@ -31,20 +31,33 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 0
 fi
 
-# Project allowlist: skip if current project is not in the allowed list
+# Resolve current project identity
+CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
+REMOTE_URL=$(git -C "${CWD:-.}" remote get-url origin 2>/dev/null || true)
+PROJECT_ID=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+
+# Project allowlist check
 PROJECTS=$(jq -r '.projects // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
-if [[ -n "$PROJECTS" ]]; then
-  # Get current project's remote URL and extract owner/repo
-  CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
-  REMOTE_URL=$(git -C "${CWD:-.}" remote get-url origin 2>/dev/null || true)
-  # Normalize: extract "owner/repo" from HTTPS or SSH URL
-  PROJECT_ID=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]##; s#\.git$##')
-  if [[ -z "$PROJECT_ID" ]]; then
-    exit 0
-  fi
-  # Check if project is in the allowlist
-  if ! echo "$PROJECTS" | grep -qxF "$PROJECT_ID"; then
-    exit 0
+PROJECT_IN_LIST=false
+if [[ -z "$PROJECTS" ]]; then
+  # Empty allowlist = all projects enabled
+  PROJECT_IN_LIST=true
+elif [[ -n "$PROJECT_ID" ]] && echo "$PROJECTS" | grep -qxF "$PROJECT_ID"; then
+  PROJECT_IN_LIST=true
+fi
+
+# Check dismissed projects (don't ask again for these)
+if [[ -n "$PROJECT_ID" ]]; then
+  STATE_FILE="$HOME/.claude/prompt-review-state.json"
+  DISMISSED=$(jq -r --arg p "$PROJECT_ID" '.dismissed_projects[$p] // ""' "$STATE_FILE" 2>/dev/null || true)
+  if [[ -n "$DISMISSED" ]]; then
+    # Check if cooldown expired (7 days)
+    NOW_TS=$(date +%s)
+    DISMISSED_TS=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${DISMISSED%Z}" +%s 2>/dev/null || echo 0)
+    if [[ $((NOW_TS - DISMISSED_TS)) -lt 604800 ]]; then
+      PROJECT_IN_LIST=false  # Will be skipped below without asking
+      PERMANENTLY_DISMISSED=true
+    fi
   fi
 fi
 
@@ -53,23 +66,54 @@ fi
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \
    ! echo "$COMMAND" | grep -qE 'git\s+push\s+.*--(dry-run|delete)'; then
 
-  jq -n \
-    --arg reason '[PROMPT CAPTURE] git push detected. Run /prompt-craft:prompt-review --push to capture session prompts.' \
-    --arg context 'You MUST use the Skill tool to run: /prompt-craft:prompt-review --push
+  # Just-in-Time opt-in: project not in allowlist → ask to enable
+  if [[ "$PROJECT_IN_LIST" != "true" && -n "$PROJECT_ID" && "${PERMANENTLY_DISMISSED:-}" != "true" ]]; then
+    jq -n \
+      --arg reason "[PROMPT CRAFT] New project detected: $PROJECT_ID. Ask if the user wants to enable prompt capture." \
+      --arg context "Project \"$PROJECT_ID\" is not in the prompt-review allowlist. Ask the user:
+
+\"I noticed you pushed from $PROJECT_ID, but prompt review isn't tracking this project yet. Enable prompt capture for this project?\"
+
+Options (use AskUserQuestion):
+1. Yes, enable for this project — add \"$PROJECT_ID\" to the projects array in ~/.claude/prompt-review.config.json using jq, then run /prompt-craft:prompt-review --push
+2. Not now — store dismissal in ~/.claude/prompt-review-state.json: set .dismissed_projects[\"$PROJECT_ID\"] to current ISO timestamp. Do NOT run prompt-review.
+3. Never for this project — store permanent dismissal: set .dismissed_projects[\"$PROJECT_ID\"] to \"permanent\". Do NOT run prompt-review.
+
+If the user says yes, after adding the project, proceed to run the prompt-review --push skill." \
+      '{
+        continue: true,
+        decision: "block",
+        reason: $reason,
+        hookSpecificOutput: {
+          hookEventName: "PostToolUse",
+          additionalContext: $context
+        }
+      }'
+    exit 0
+  fi
+
+  # Project is in allowlist — proceed with normal capture
+  if [[ "$PROJECT_IN_LIST" == "true" ]]; then
+    jq -n \
+      --arg reason '[PROMPT CAPTURE] git push detected. Run /prompt-craft:prompt-review --push to capture session prompts.' \
+      --arg context 'You MUST use the Skill tool to run: /prompt-craft:prompt-review --push
 
 This skill captures all user prompts from this session and commits them to the configured prompt review repository. The push was successful — this is a post-push capture step that records session data for team review.
 
 Do NOT skip this step. Do NOT summarize with "push completed" without running the skill first.' \
-    '{
-      continue: true,
-      decision: "block",
-      reason: $reason,
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        additionalContext: $context
-      }
-    }'
+      '{
+        continue: true,
+        decision: "block",
+        reason: $reason,
+        hookSpecificOutput: {
+          hookEventName: "PostToolUse",
+          additionalContext: $context
+        }
+      }'
+    exit 0
+  fi
 
+  # Project dismissed or not identifiable — skip silently
   exit 0
 fi
 
