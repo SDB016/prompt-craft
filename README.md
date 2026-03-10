@@ -21,14 +21,14 @@
 /setup           # Asks for your review repo → auto-configures everything
 ```
 
-**Step 3: Use**
+**Step 3: Review prompts**
 ```
-git push         # Prompts auto-captured
 /review          # Create prompt review PR
 /score           # Local scoring (no PR)
 ```
 
-That's it. `/setup` asks for your review repo and auto-configures everything else. After that, prompts are automatically captured on every `git push` and scored on `gh pr create`.
+Prompts are **automatically captured** on every `git push`.
+`/review` aggregates them into a scored PR in your review repo.
 
 > **Note:** Restart Claude Code after first install for the push hook to activate. If you skip `/setup`, you'll be reminded on each session start.
 
