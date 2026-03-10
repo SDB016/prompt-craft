@@ -369,8 +369,17 @@ PUSH_NUM=$(ls "$SESSION_DIR"/push-*.md 2>/dev/null | wc -l | tr -d ' ')
 PUSH_NUM=$((PUSH_NUM + 1))
 PUSH_FILE="$SESSION_DIR/push-$(printf '%03d' $PUSH_NUM).md"
 
-# AI writes push file content following templates/push-record.md format
-# (Claude generates the content based on session context + git diff)
+# === AI FILE GENERATION STEP (not bash — Claude performs this) ===
+# You MUST generate the push record content and write it to $PUSH_FILE before continuing.
+#
+# 1. Collect ALL user prompts from your current session context (verbatim, not summarized)
+# 2. Run: git log --oneline $(git merge-base HEAD origin/$BASE_BRANCH)..HEAD
+# 3. Run: git diff --stat $(git merge-base HEAD origin/$BASE_BRANCH)..HEAD
+# 4. Score all prompts against the 8 criteria (see Step C-3 scoring table)
+# 5. Format everything per ${CLAUDE_SKILL_DIR}/templates/push-record.md
+# 6. Write the result to $PUSH_FILE using the Write tool or cat <<'EOF' > "$PUSH_FILE"
+# 7. Then continue with the size check and git commit below.
+# ===
 
 # Size check: abort if push file exceeds 1 MB
 if [ -f "$PUSH_FILE" ]; then
@@ -385,9 +394,14 @@ git add .
 git commit -m "push: $BRANCH push #$PUSH_NUM ($DATE)"
 git push origin "prompt-data/$BRANCH"
 
-# Update state file with last push timestamp
+# Update state file with last push timestamp (merge to preserve dismissed_projects)
 mkdir -p "$(dirname "$STATE_FILE")"
-jq -n --argjson ts "$(date +%s)" '{"last_push_ts": $ts}' > "$STATE_FILE"
+if [ -f "$STATE_FILE" ]; then
+  jq --argjson ts "$(date +%s)" '.last_push_ts = $ts' "$STATE_FILE" > "${STATE_FILE}.tmp" \
+    && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+else
+  jq -n --argjson ts "$(date +%s)" '{"last_push_ts": $ts}' > "$STATE_FILE"
+fi
 ```
 
 ### Error Recovery

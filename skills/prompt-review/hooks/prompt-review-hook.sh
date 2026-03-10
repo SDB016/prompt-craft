@@ -18,10 +18,11 @@ INPUT=$(cat)
 
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
 
-# tool_response is a plain string (stdout), not an object.
-# We skip commands that produced error-like output.
-RESPONSE=$(echo "$INPUT" | jq -r '.tool_response // ""')
-if echo "$RESPONSE" | grep -qiE '(fatal|error|rejected|denied)'; then
+# tool_response for Bash tool is typically a structured object: { stdout, stderr, exit_code }
+# but may be a plain string in some environments. Handle both cases.
+STDOUT=$(echo "$INPUT" | jq -r 'if (.tool_response | type) == "object" then .tool_response.stdout // "" else (.tool_response // "") end')
+STDERR=$(echo "$INPUT" | jq -r 'if (.tool_response | type) == "object" then .tool_response.stderr // "" else "" end')
+if echo "$STDOUT$STDERR" | grep -qiE '(fatal|error|rejected|denied)'; then
   exit 0
 fi
 
@@ -100,7 +101,9 @@ If the user says yes, after adding the project, proceed to run the prompt-review
 
 This skill captures all user prompts from this session and commits them to the configured prompt review repository. The push was successful — this is a post-push capture step that records session data for team review.
 
-Do NOT skip this step. Do NOT summarize with "push completed" without running the skill first.' \
+Do NOT skip this step. Do NOT summarize with "push completed" without running the skill first.
+
+If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:prompt-review", args="--push"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/prompt-review/SKILL.md with ARGUMENTS="--push".' \
       '{
         continue: true,
         decision: "block",
@@ -126,7 +129,9 @@ if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)gh\s+pr\s+create\b'; then
 
 This skill aggregates all captured prompts, scores them against 8 quality criteria (100 points), and creates a prompt review PR in the configured review repository. The code PR was created successfully — now create the companion prompt review PR.
 
-Do NOT skip this step.' \
+Do NOT skip this step.
+
+If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:prompt-review"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/prompt-review/SKILL.md.' \
     '{
       continue: true,
       decision: "block",
