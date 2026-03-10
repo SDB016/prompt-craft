@@ -611,7 +611,7 @@ fi
 
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR" "$PR_BODY_FILE"' EXIT
-git clone --depth 1 "$CLONE_URL" "$ARCHIVE_DIR"
+git clone --depth 1 --branch "$BASE_BRANCH" "$CLONE_URL" "$ARCHIVE_DIR"
 
 echo "  [2/5] Creating branch..."
 cd "$ARCHIVE_DIR"
