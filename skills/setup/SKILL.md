@@ -27,7 +27,7 @@ CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
 
 if [ -f "$CONFIG_FILE" ]; then
   REPO=$(jq -r '.repo // empty' "$CONFIG_FILE" 2>/dev/null)
-  VERSION=$(jq -r '.config_version // "1.x"' "$CONFIG_FILE" 2>/dev/null)
+  VERSION=$(jq -r '.config_version // "unknown"' "$CONFIG_FILE" 2>/dev/null)
   echo "EXISTING_CONFIG=true"
   echo "REPO=$REPO"
   echo "VERSION=$VERSION"
@@ -115,12 +115,12 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 jq -n \
   --arg repo "$REPO" \
   '{
-    config_version: "2.0",
+    config_version: "1.3",
     repo: $repo,
     branch_prefix: "prompt-review/",
     base_branch: "main",
     label: "prompt-review",
-    projects: [],
+    capture: { mode: "ask", projects: {} },
     language: "auto",
     created_at: (now | todate)
   }' > "$CONFIG_FILE"
@@ -137,7 +137,8 @@ Prompt Craft configured!
   Branch prefix:   prompt-review/  (default)
   Base branch:     main  (default)
   Language:        auto  (default)
-  Config version:  2.0
+  Capture mode:    ask  (asks on first push per project)
+  Config version:  1.3
   Config saved:    ~/.claude/prompt-review.config.json
 
 What happens next:

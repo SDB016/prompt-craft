@@ -1,7 +1,7 @@
 {
   "name": "prompt-craft",
-  "version": "2.0.2",
-  "description": "Prompt quality improvement toolkit — review, score, and improve your AI prompts as a team via GitHub PRs. 4 skills: review, score, insights, coach.",
+  "version": "1.3.0",
+  "description": "Prompt quality improvement toolkit — review, score, and improve your AI prompts as a team via GitHub PRs. 6 skills: review, score, insights, coach, setup, setup-project.",
   "author": {
     "name": "SDB016"
   },

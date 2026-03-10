@@ -1,7 +1,7 @@
 ---
 name: review
 description: Capture prompts from Claude Code sessions and create prompt review PRs for team feedback. Includes setup, doctor check, and project management. Use when asked to review prompts, create prompt PR, share session prompts, or configure prompt review.
-argument-hint: "[--push] [--setup] [--status] [--doctor] [--advanced] [add|remove|list]"
+argument-hint: "[--push] [--setup] [--status] [--doctor] [--advanced]"
 disable-model-invocation: false
 allowed-tools: Bash, Read, Grep, Glob
 ---
@@ -37,36 +37,19 @@ This means:
 - If `$ARGUMENTS` contains `--setup` → jump to **[SETUP WIZARD]**
 - If `$ARGUMENTS` contains `--push` → jump to **[PUSH HOOK]**
 - If `$ARGUMENTS` contains `--status` → jump to **[STATUS DISPLAY]**
-- If `$ARGUMENTS` matches project management intent → jump to **[PROJECT MANAGEMENT]**
+- If `$ARGUMENTS` matches project management intent (add, remove, list, projects) → jump to **[PROJECT MANAGEMENT]** (redirects to `/setup-project`)
 - If no config exists at `~/.claude/prompt-review.config.json` → run **[LAZY SETUP]** first
 - Otherwise → proceed to **[CAPTURE FLOW]**
 
-### Config Version Migration
-
-Before proceeding with any operation (except `--doctor` and `--setup`), check if the config needs migration:
-
-```bash
-CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
-if [ -f "$CONFIG_FILE" ]; then
-  CONFIG_VERSION=$(jq -r '.config_version // empty' "$CONFIG_FILE" 2>/dev/null)
-  if [ -z "$CONFIG_VERSION" ]; then
-    # v1.x config detected — add config_version field
-    jq '. + {"config_version": "2.0"}' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" \
-      && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
-    echo "Config migrated to v2.0 format."
-  fi
-fi
-```
-
 ### Project Management Intent Detection
 
-Detect these patterns in `$ARGUMENTS` (natural language, case-insensitive):
+Detect these patterns in `$ARGUMENTS` (natural language, case-insensitive) and redirect to the `/setup-project` skill:
 
 | Intent | Trigger phrases | Action |
 |--------|----------------|--------|
-| **Add project** | "add project", "add this project", "track this", "enable here", "이 프로젝트 추가" | → [PROJECT MANAGEMENT] add |
-| **Remove project** | "remove project", "stop tracking", "disable", "이 프로젝트 제거" | → [PROJECT MANAGEMENT] remove |
-| **List projects** | "list projects", "show projects", "which projects", "projects", "프로젝트 목록" | → [PROJECT MANAGEMENT] list |
+| **Add/enable project** | "add project", "add this project", "track this", "enable here", "이 프로젝트 추가" | → invoke `/setup-project on` |
+| **Remove/disable project** | "remove project", "stop tracking", "disable", "이 프로젝트 제거" | → invoke `/setup-project off` |
+| **List projects** | "list projects", "show projects", "which projects", "projects", "프로젝트 목록" | → invoke `/setup-project list` |
 
 ---
 
@@ -184,12 +167,12 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 jq -n \
   --arg repo "$REPO" \
   '{
-    config_version: "2.0",
+    config_version: "1.3",
     repo: $repo,
     branch_prefix: "prompt-review/",
     base_branch: "main",
     label: "prompt-review",
-    projects: [],
+    capture: { mode: "ask", projects: {} },
     language: "auto",
     created_at: (now | todate)
   }' > "$CONFIG_FILE"
@@ -204,7 +187,8 @@ prompt-review configured.
   Branch prefix:   prompt-review/  (default)
   Base branch:     main  (default)
   Language:        auto  (default)
-  Config version:  2.0
+  Capture mode:    ask  (asks on first push per project)
+  Config version:  1.3
   Config saved:    ~/.claude/prompt-review.config.json
 
 What happens next:
@@ -348,24 +332,17 @@ If `REPO_IS_PRIVATE=false` (public repo), show warning:
 
 ---
 
-### Step W-2: Select Projects
+### Step W-2: Capture Mode
 
-**Question:** "Which projects should trigger prompt capture? (format: owner/repo, comma-separated)"
-
-Detect the current project automatically:
-
-```bash
-REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
-CURRENT_PROJECT=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]##; s#\.git$##')
-echo "CURRENT_PROJECT=$CURRENT_PROJECT"
-```
+**Question:** "How should prompt capture work for your projects?"
 
 **Options:**
-1. **This project only** (`{CURRENT_PROJECT}`) — Capture prompts only in this repo
-2. **All projects** — Capture prompts in every project (no filtering)
-3. **Custom list** — Enter a comma-separated list of `owner/repo` values
+1. **Ask on first push** (default) — You'll be asked to enable/disable capture the first time you push from each project
+2. **Capture from all projects** — Automatically capture prompts from every project without asking
 
-If the user picks option 1 or 3, store the list in the `projects` array. If option 2, set `projects` to `[]` (empty array = no filtering).
+If option 1, set `capture.mode` to `"ask"`. If option 2, set `capture.mode` to `"all"`.
+
+Manage per-project settings anytime with `/setup-project on|off|list`.
 
 ---
 
@@ -407,24 +384,23 @@ jq -n \
   --arg branch_prefix "$BRANCH_PREFIX" \
   --arg base_branch "$BASE_BRANCH" \
   --arg label "$LABEL_NAME" \
-  --argjson projects "$PROJECTS_JSON" \
+  --arg capture_mode "$CAPTURE_MODE" \
   --arg language "$LANGUAGE" \
   '{
-    config_version: "2.0",
+    config_version: "1.3",
     repo: $repo,
     branch_prefix: $branch_prefix,
     base_branch: $base_branch,
     label: $label,
-    projects: $projects,
+    capture: { mode: $capture_mode, projects: {} },
     language: $language,
     created_at: (now | todate)
   }' > "$CONFIG_FILE"
 ```
 
-Where `$PROJECTS_JSON` is:
-- `[]` if user chose "All projects"
-- `["owner/repo-a"]` if user chose "This project only"
-- `["owner/repo-a", "owner/repo-b"]` if user chose "Custom list"
+Where `$CAPTURE_MODE` is:
+- `"ask"` if user chose "Ask on first push" (default)
+- `"all"` if user chose "Capture from all projects"
 
 Display confirmation:
 
@@ -438,10 +414,11 @@ Prerequisites:
 
 Configuration:
   ✓ Config file: ~/.claude/prompt-review.config.json
-    Config version: 2.0
+    Config version: 1.3
     Review repo:    owner/ai-sessions
     Branch prefix:  prompt-review/
     Base branch:    main
+    Capture mode:   ask
 
 What happens next:
   1. git push     → Prompts auto-captured to prompt repo (commit only)
@@ -672,7 +649,7 @@ git add .
 git commit -m "$COMMIT_SUMMARY (#$PUSH_NUM)"
 git push origin "$PROJECT_SLUG/$BRANCH"
 
-# Update state file with last push timestamp (merge to preserve dismissed_projects)
+# Update state file with last push timestamp
 mkdir -p "$(dirname "$STATE_FILE")"
 if [ -f "$STATE_FILE" ]; then
   jq --argjson ts "$(date +%s)" '.last_push_ts = $ts' "$STATE_FILE" > "${STATE_FILE}.tmp" \
@@ -959,7 +936,6 @@ Fix:   [exact command to resolve]
 | Repo not accessible | `Error: Cannot access {REPO}.` / `Cause: Repository doesn't exist or you lack access.` / `Fix: Check the name or run /review --setup to reconfigure.` |
 | Push failed | `Error: Push to {REPO} failed.` / `Cause: Insufficient write permissions.` / `Fix: Check write permissions: gh auth status` |
 | No push records | `Error: No prompt data found.` / `Cause: No git push happened in this session yet.` / `Fix: Push some code first, or capture current session directly.` |
-| Config migration failed | `Error: Config file format outdated.` / `Cause: Config was created with v1.x and cannot be auto-migrated.` / `Fix: Delete ~/.claude/prompt-review.config.json and run /review to reconfigure.` |
 | Secret scan found sensitive data | `Error: Sensitive data detected in prompt content.` / `Cause: Potential secrets found (API keys, tokens, passwords).` / `Fix: Redact the flagged content, confirm false positive, or abort.` |
 | Rate limited | `Error: Push captured too recently.` / `Cause: Last push was less than 30 seconds ago.` / `Fix: Wait 30 seconds and push again.` |
 | File size exceeded | `Error: Push record exceeds 1 MB limit.` / `Cause: Too many prompts or large code diffs in this session.` / `Fix: Split work into smaller sessions with fewer prompts.` |
@@ -972,12 +948,19 @@ Config file: `~/.claude/prompt-review.config.json`
 
 ```json
 {
-  "config_version": "2.0",
+  "config_version": "1.3",
   "repo": "owner/ai-sessions",
   "branch_prefix": "prompt-review/",
   "base_branch": "main",
   "label": "prompt-review",
-  "projects": ["owner/project-a", "owner/project-b"],
+  "capture": {
+    "mode": "ask",
+    "projects": {
+      "owner/project-a": { "status": "allow", "repo": "owner/custom-reviews" },
+      "owner/project-b": { "status": "allow" },
+      "owner/personal-notes": { "status": "deny" }
+    }
+  },
   "language": "auto",
   "created_at": "2026-03-08T12:00:00Z"
 }
@@ -985,91 +968,45 @@ Config file: `~/.claude/prompt-review.config.json`
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `config_version` | Yes | Config schema version for future migrations (e.g., `"2.0"`) |
-| `repo` | Yes | Review repository (where prompt PRs are created) |
+| `config_version` | Yes | Config schema version for future migrations (e.g., `"1.3"`) |
+| `repo` | Yes | Default review repository (where prompt PRs are created) |
 | `branch_prefix` | Yes | Branch name prefix for prompt review branches |
 | `base_branch` | Yes | Base branch in the review repo |
 | `label` | Yes | Default label applied to prompt review PRs |
-| `projects` | No | Allowlist of `owner/repo` projects. If set, only pushes from these projects trigger capture. If empty or omitted, **all projects** trigger capture. |
+| `capture.mode` | Yes | `"ask"` (default, ask on first push) or `"all"` (capture from all projects) |
+| `capture.projects` | No | Map of `owner/repo` → `{ "status": "allow"\|"deny", "repo": "..." }`. Projects with `"allow"` are captured; `"deny"` projects are silently skipped. Optional `"repo"` overrides the default review repo for that project. Use `/setup-project` to manage. |
 | `language` | No | Language for generated content. `"auto"` (default) detects the dominant language of user prompts. Explicit codes like `"en"`, `"ko"`, `"ja"`, `"zh"` force that language. Template structure (headers, column names, badges) always remains in English. |
 
 ---
 
-## [PROJECT MANAGEMENT] — Add, Remove, List Projects
+## [PROJECT MANAGEMENT] — Redirect to /setup-project
 
-Manages which projects trigger prompt capture. The `projects` array in config controls the allowlist.
+Per-project capture settings are managed via the `/setup-project` skill. When project management intent is detected, redirect:
 
-### List Projects
+```
+Use /setup-project to manage per-project capture settings:
 
-```bash
-CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
-PROJECTS=$(jq -r '.projects // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
-CURRENT=$(git remote get-url origin 2>/dev/null | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+  /setup-project              Show current project status
+  /setup-project on           Enable capture for this project
+  /setup-project on --repo R  Enable with a specific review repo
+  /setup-project off          Disable capture for this project
+  /setup-project list         Show all project settings
+  /setup-project reset        Re-enable asking for a skipped project
 ```
 
-Display:
-```
-Prompt Craft — Tracked Projects
-
-  1. owner/project-a
-  2. owner/project-b
-  → Current project: owner/current-repo (tracked ✓ / not tracked ✗)
-
-Empty list means all projects are tracked.
-```
-
-### Add Project
-
-Detect the current project automatically:
-
-```bash
-CURRENT=$(git remote get-url origin 2>/dev/null | sed -E 's#.*github\.com[:/]##; s#\.git$##')
-```
-
-If the user said "add this project" without specifying a name, use `$CURRENT`. If they specified a name (e.g., "add myorg/myrepo"), use that.
-
-**Question (if ambiguous):** "Which project should I add? I see you're in `{CURRENT}`."
-
-**Options:**
-1. **This project** (`{CURRENT}`)
-2. **Enter a different project**
-
-Then add to config:
-
-```bash
-jq --arg p "$PROJECT" '.projects = ((.projects // []) + [$p] | unique)' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" \
-  && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-```
-
-Confirm: "Added `{PROJECT}` to prompt tracking. Prompts will be captured on next push."
-
-### Remove Project
-
-Show the current list and ask which to remove:
-
-**Question:** "Which project should I stop tracking?"
-
-**Options:** (dynamically generated from `projects` array + "All — disable filtering")
-
-Then remove from config:
-
-```bash
-jq --arg p "$PROJECT" '.projects = [.projects[] | select(. != $p)]' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" \
-  && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-```
-
-Confirm: "Removed `{PROJECT}` from prompt tracking."
+Invoke the `/setup-project` skill via the Skill tool with the appropriate arguments (`on`, `off`, `list`, `reset`, or empty for status).
 
 ### Just-in-Time Opt-in
 
-When the push hook detects a project NOT in the allowlist, it triggers a conversational prompt instead of silently skipping. The user sees:
+When the push hook detects a project not yet in `capture.projects`, it asks:
 
-**Question:** "I noticed you pushed from `{PROJECT}`. Enable prompt capture for this project?"
+**Question:** "Enable prompt capture for {PROJECT}?"
 
 **Options:**
-1. **Yes, enable** — Adds to `projects` array, then runs capture
-2. **Not now** — Stores dismissal timestamp in `~/.claude/prompt-review-state.json` (re-asks after 7 days)
-3. **Never for this project** — Stores permanent dismissal
+1. **Yes** — Sets `capture.projects[project].status = "allow"` in config, asks which repo to use, then runs capture
+2. **No** — Sets `capture.projects[project].status = "deny"` in config. Silently skipped on future pushes.
+
+Use `/setup-project reset` to re-enable asking for a previously denied project.
 
 This means the project list builds organically through normal development workflow. No upfront setup required.
 

@@ -52,6 +52,7 @@ git push         # プロンプト自動キャプチャ
 | `/score` | ローカルスコアリング + 改善ヒント (`--verbose`) |
 | `/insights` | スコアトレンド、高スコアパターン、セッション比較 |
 | `/coach` | タスク前プロンプトガイド + 再利用テンプレート |
+| `/setup-project` | プロジェクト別キャプチャ設定（有効化、無効化、カスタムリポジトリ） |
 
 ### review
 
@@ -62,7 +63,6 @@ git push         # プロンプト自動キャプチャ
 | `/review --status` | 設定 + 最近のPR表示 |
 | `/review --doctor` | 前提条件チェック (git, gh, jq) |
 | `/review --setup` | 設定再構成 |
-| `/review add/remove/list` | トラッキングプロジェクト管理 |
 
 ### insights
 
@@ -79,6 +79,17 @@ git push         # プロンプト自動キャプチャ
 |----------|------|
 | `/coach` | コンテキストベースのプロンプト作成ヒント |
 | `/coach template save/list/use/delete` | 再利用テンプレート管理 |
+
+### setup-project
+
+| コマンド | 動作 |
+|----------|------|
+| `/setup-project` | 現在のプロジェクトキャプチャ状態を表示 |
+| `/setup-project on` | 現在のプロジェクトのキャプチャを有効化 |
+| `/setup-project on --repo R` | 特定のレビューリポジトリでキャプチャを有効化 |
+| `/setup-project off` | キャプチャを無効化（自動スキップ） |
+| `/setup-project list` | 全プロジェクト設定を表示 |
+| `/setup-project reset` | スキップしたプロジェクトの再質問を有効化 |
 
 ### 自動フロー
 
@@ -168,30 +179,12 @@ git push         # プロンプト自動キャプチャ
 
 ---
 
-## v1.xからの移行
-
-| v1.xコマンド | v2.0コマンド |
-|-------------|-------------|
-| `/setup` | `/review --doctor` |
-| `/prompt-review` | `/review` |
-| `/prompt-feedback` | `/score` |
-| `/prompt-stats` | `/insights` |
-| `/prompt-tips` | `/coach` |
-| `/prompt-replay` | `/insights patterns` |
-| `/prompt-compare #1 #2` | `/insights compare #1 #2` |
-| `/prompt-template save X` | `/coach template save X` |
-
-> **注意:** v1.xコマンドも引き続き動作します — 非推奨通知を表示し、自動的にv2.0コマンドにリダイレクトされます。
-
----
-
 ## トラブルシューティング
 
 | 問題 | 解決 |
 |------|------|
 | インストール後Hookが動作しない | Claude Codeセッションを再起動してプラグインhookを再読み込み |
-| 旧コマンドが動作しない | プラグインを更新: `/plugin install prompt-craft` |
-| アップグレード後の設定エラー | `~/.claude/prompt-review.config.json`を削除して`/review`を実行し再設定 |
+| 設定エラー | `~/.claude/prompt-review.config.json`を削除して`/setup`を実行し再設定 |
 
 ---
 

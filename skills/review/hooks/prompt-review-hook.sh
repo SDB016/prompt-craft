@@ -43,7 +43,6 @@ PROJECT_ID=$(echo "$REMOTE_URL" | sed -E 's#^.*@[^:]+:##; s#^https?://[^/]+/##; 
 # Recursion guard: skip if current repo IS the prompt-reviews repo
 REVIEW_REPO=$(jq -r '.repo // ""' "$CONFIG_FILE" 2>/dev/null)
 if [[ -n "$PROJECT_ID" && -n "$REVIEW_REPO" ]]; then
-  # Case-insensitive comparison (GitHub repos are case-insensitive)
   PID_LOWER=$(echo "$PROJECT_ID" | tr '[:upper:]' '[:lower:]')
   RR_LOWER=$(echo "$REVIEW_REPO" | tr '[:upper:]' '[:lower:]')
   if [[ "$PID_LOWER" == "$RR_LOWER" ]]; then
@@ -51,29 +50,34 @@ if [[ -n "$PROJECT_ID" && -n "$REVIEW_REPO" ]]; then
   fi
 fi
 
-# Project allowlist check
-PROJECTS=$(jq -r '.projects // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
-PROJECT_IN_LIST=false
-if [[ -z "$PROJECTS" ]]; then
-  # Empty allowlist = all projects enabled
-  PROJECT_IN_LIST=true
-elif [[ -n "$PROJECT_ID" ]] && echo "$PROJECTS" | grep -qxF "$PROJECT_ID"; then
-  PROJECT_IN_LIST=true
+# --- Project capture check (allow/deny/ask) ---
+# Read capture mode and project status from config
+CAPTURE_MODE=$(jq -r '.capture.mode // "ask"' "$CONFIG_FILE" 2>/dev/null)
+PROJECT_STATUS=""
+PROJECT_REPO=""
+
+if [[ -n "$PROJECT_ID" ]]; then
+  PROJECT_STATUS=$(jq -r --arg p "$PROJECT_ID" '.capture.projects[$p].status // ""' "$CONFIG_FILE" 2>/dev/null)
+  PROJECT_REPO=$(jq -r --arg p "$PROJECT_ID" '.capture.projects[$p].repo // ""' "$CONFIG_FILE" 2>/dev/null)
 fi
 
-# Check dismissed projects (don't ask again for these)
-if [[ -n "$PROJECT_ID" ]]; then
-  STATE_FILE="$HOME/.claude/prompt-review-state.json"
-  DISMISSED=$(jq -r --arg p "$PROJECT_ID" '.dismissed_projects[$p] // ""' "$STATE_FILE" 2>/dev/null || true)
-  if [[ -n "$DISMISSED" ]]; then
-    # Check if cooldown expired (7 days)
-    NOW_TS=$(date +%s)
-    DISMISSED_TS=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${DISMISSED%Z}" +%s 2>/dev/null || echo 0)
-    if [[ $((NOW_TS - DISMISSED_TS)) -lt 604800 ]]; then
-      PROJECT_IN_LIST=false  # Will be skipped below without asking
-      PERMANENTLY_DISMISSED=true
-    fi
-  fi
+# Determine effective repo for this project (project-specific or global default)
+EFFECTIVE_REPO="${PROJECT_REPO:-$REVIEW_REPO}"
+
+# Resolve project capture decision
+# Deny always wins — even if mode is "all", explicit deny is respected
+CAPTURE_DECISION="skip"
+if [[ "$PROJECT_STATUS" == "deny" ]]; then
+  # Denied project — suppress completely, Claude never sees this
+  echo '{"continue":true,"suppressOutput":true}'
+  exit 0
+elif [[ "$CAPTURE_MODE" == "all" ]]; then
+  CAPTURE_DECISION="capture"
+elif [[ "$PROJECT_STATUS" == "allow" ]]; then
+  CAPTURE_DECISION="capture"
+elif [[ -z "$PROJECT_STATUS" && -n "$PROJECT_ID" ]]; then
+  # Not in allow or deny — need to ask
+  CAPTURE_DECISION="ask"
 fi
 
 # Detect: git push (anchored to command start or after shell operators)
@@ -81,20 +85,35 @@ fi
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \
    ! echo "$COMMAND" | grep -qE 'git\s+push\s+.*--(dry-run|delete)'; then
 
-  # Just-in-Time opt-in: project not in allowlist → ask to enable
-  if [[ "$PROJECT_IN_LIST" != "true" && -n "$PROJECT_ID" && "${PERMANENTLY_DISMISSED:-}" != "true" ]]; then
+  # Ask flow: project not in allow or deny
+  if [[ "$CAPTURE_DECISION" == "ask" ]]; then
     jq -n \
       --arg reason "[PROMPT CRAFT] New project detected: $PROJECT_ID. Ask if the user wants to enable prompt capture." \
-      --arg context "Project \"$PROJECT_ID\" is not in the prompt-review allowlist. Ask the user:
+      --arg context "Project \"$PROJECT_ID\" is not tracked for prompt capture yet. Ask the user using AskUserQuestion:
 
-\"I noticed you pushed from $PROJECT_ID, but prompt review isn't tracking this project yet. Enable prompt capture for this project?\"
+\"Enable prompt capture for $PROJECT_ID?\"
 
-Options (use AskUserQuestion):
-1. Yes, enable for this project — add \"$PROJECT_ID\" to the projects array in ~/.claude/prompt-review.config.json using jq, then run /prompt-craft:review --push
-2. Not now — store dismissal in ~/.claude/prompt-review-state.json: set .dismissed_projects[\"$PROJECT_ID\"] to current ISO timestamp. Do NOT run review.
-3. Never for this project — store permanent dismissal: set .dismissed_projects[\"$PROJECT_ID\"] to \"permanent\". Do NOT run review.
+Options:
+1. Yes — enable capture for this project
+2. No — skip this project (won't ask again)
 
-If the user says yes, after adding the project, proceed to run the review --push skill." \
+If the user says YES:
+  Then ask: \"Which repo should prompt reviews go to? (default: $REVIEW_REPO)\"
+  Options:
+  1. Use default ($REVIEW_REPO)
+  2. Use a different repo — ask for owner/repo format
+
+  After getting the repo choice, update config:
+  - If using default repo:
+    jq --arg p \"$PROJECT_ID\" '.capture.projects[\$p] = {\"status\": \"allow\"}' ~/.claude/prompt-review.config.json > ~/.claude/prompt-review.config.json.tmp && mv ~/.claude/prompt-review.config.json.tmp ~/.claude/prompt-review.config.json
+  - If using custom repo:
+    jq --arg p \"$PROJECT_ID\" --arg r \"CUSTOM_REPO\" '.capture.projects[\$p] = {\"status\": \"allow\", \"repo\": \$r}' ~/.claude/prompt-review.config.json > ~/.claude/prompt-review.config.json.tmp && mv ~/.claude/prompt-review.config.json.tmp ~/.claude/prompt-review.config.json
+
+  Then run /prompt-craft:review --push
+
+If the user says NO:
+  jq --arg p \"$PROJECT_ID\" '.capture.projects[\$p] = {\"status\": \"deny\"}' ~/.claude/prompt-review.config.json > ~/.claude/prompt-review.config.json.tmp && mv ~/.claude/prompt-review.config.json.tmp ~/.claude/prompt-review.config.json
+  Do NOT run review." \
       '{
         continue: true,
         decision: "block",
@@ -107,17 +126,20 @@ If the user says yes, after adding the project, proceed to run the review --push
     exit 0
   fi
 
-  # Project is in allowlist — proceed with normal capture
-  if [[ "$PROJECT_IN_LIST" == "true" ]]; then
+  # Capture flow: project is allowed
+  if [[ "$CAPTURE_DECISION" == "capture" ]]; then
     jq -n \
       --arg reason '[PROMPT CAPTURE] git push detected. Run /prompt-craft:review --push to capture session prompts.' \
-      --arg context 'You MUST use the Skill tool to run: /prompt-craft:review --push
+      --arg effective_repo "$EFFECTIVE_REPO" \
+      --arg context "You MUST use the Skill tool to run: /prompt-craft:review --push
 
 This skill captures all user prompts from this session and commits them to the configured prompt review repository. The push was successful — this is a post-push capture step that records session data for team review.
 
-Do NOT skip this step. Do NOT summarize with "push completed" without running the skill first.
+Review repo for this project: $EFFECTIVE_REPO (use this instead of the default if it differs from config .repo).
 
-If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:review", args="--push"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/review/SKILL.md with ARGUMENTS="--push".' \
+Do NOT skip this step. Do NOT summarize with \"push completed\" without running the skill first.
+
+If the Skill tool fails to resolve the skill name, try: Skill(skill=\"prompt-craft:review\", args=\"--push\"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/review/SKILL.md with ARGUMENTS=\"--push\"." \
       '{
         continue: true,
         decision: "block",
@@ -130,12 +152,17 @@ If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craf
     exit 0
   fi
 
-  # Project dismissed or not identifiable — skip silently
+  # Skip silently (no project ID or other edge case)
   exit 0
 fi
 
 # Detect: gh pr create (anchored)
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)gh\s+pr\s+create\b'; then
+
+  # Only trigger review if project is captured
+  if [[ "$CAPTURE_DECISION" != "capture" ]]; then
+    exit 0
+  fi
 
   jq -n \
     --arg reason '[PROMPT REVIEW] gh pr create detected. Run /prompt-craft:review to create a scored prompt review PR.' \

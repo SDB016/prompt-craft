@@ -52,6 +52,7 @@ That's it. `/setup` asks for your review repo and auto-configures everything els
 | `/score` | Local scoring + improvement tips (`--verbose`) |
 | `/insights` | Score trends, high-scoring patterns, session comparison |
 | `/coach` | Pre-task prompt guide + reusable templates |
+| `/setup-project` | Per-project capture settings (enable, disable, custom repo) |
 
 ### review
 
@@ -62,7 +63,6 @@ That's it. `/setup` asks for your review repo and auto-configures everything els
 | `/review --status` | Show config + recent PRs |
 | `/review --doctor` | Check prerequisites (git, gh, jq) |
 | `/review --setup` | Reconfigure settings |
-| `/review add/remove/list` | Manage tracked projects |
 
 ### insights
 
@@ -79,6 +79,17 @@ That's it. `/setup` asks for your review repo and auto-configures everything els
 |---------|--------|
 | `/coach` | Contextual prompt writing tips |
 | `/coach template save/list/use/delete` | Manage reusable templates |
+
+### setup-project
+
+| Command | Action |
+|---------|--------|
+| `/setup-project` | Show current project capture status |
+| `/setup-project on` | Enable capture for current project |
+| `/setup-project on --repo R` | Enable with a specific review repo |
+| `/setup-project off` | Disable capture (silently skipped) |
+| `/setup-project list` | Show all project settings |
+| `/setup-project reset` | Re-enable asking for a skipped project |
 
 ### Automatic Flow
 
@@ -177,30 +188,12 @@ No traces are left in the project repo. All review PRs go to a separate repo (e.
 
 ---
 
-## Migration from v1.x
-
-| v1.x Command | v2.0 Command |
-|--------------|-------------|
-| `/setup` | `/review --doctor` |
-| `/prompt-review` | `/review` |
-| `/prompt-feedback` | `/score` |
-| `/prompt-stats` | `/insights` |
-| `/prompt-tips` | `/coach` |
-| `/prompt-replay` | `/insights patterns` |
-| `/prompt-compare #1 #2` | `/insights compare #1 #2` |
-| `/prompt-template save X` | `/coach template save X` |
-
-> **Note:** v1.x commands still work — they show a deprecation notice and redirect to the v2.0 equivalent automatically.
-
----
-
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | Hook not firing after install | Restart your Claude Code session to reload plugin hooks |
-| Old commands not working | Update the plugin: `/plugin install prompt-craft` |
-| Config errors after upgrade | Delete `~/.claude/prompt-review.config.json` and run `/review` to reconfigure |
+| Config errors | Delete `~/.claude/prompt-review.config.json` and run `/setup` to reconfigure |
 
 ---
 

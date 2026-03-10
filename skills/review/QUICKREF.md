@@ -1,6 +1,6 @@
 # Prompt Craft — Quick Reference
 
-## 4 Skills
+## 6 Skills
 
 | Skill | Command | Purpose |
 |-------|---------|---------|
@@ -8,6 +8,8 @@
 | **score** | `/score` | Local scoring, no PR |
 | **insights** | `/insights` | Trends, patterns, comparison |
 | **coach** | `/coach` | Pre-task tips + templates |
+| **setup** | `/setup` | First-time configuration |
+| **setup-project** | `/setup-project` | Per-project capture settings |
 
 ## review
 
@@ -18,7 +20,6 @@
 /review --doctor           # check prerequisites (git, gh, jq)
 /review --setup            # reconfigure settings
 /review --setup --advanced # full setup wizard
-/review add/remove/list    # manage tracked projects
 ```
 
 ## score
@@ -64,6 +65,17 @@
 | Complexity Fit | 10 |
 
 Grades: 🟢 90+ Excellent | 🔵 70–89 Good | 🟡 50–69 Needs Work | 🔴 <50 Poor
+
+## setup-project
+
+```bash
+/setup-project             # show current project capture status
+/setup-project on          # enable capture for current project
+/setup-project on --repo R # enable with specific review repo
+/setup-project off         # disable capture (silently skipped)
+/setup-project list        # show all project settings
+/setup-project reset       # re-enable asking for skipped project
+```
 
 ## Automatic Flow
 

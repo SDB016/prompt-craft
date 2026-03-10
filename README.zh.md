@@ -52,6 +52,7 @@ git push         # 提示词自动捕获
 | `/score` | 本地评分 + 改进建议 (`--verbose`) |
 | `/insights` | 分数趋势、高分模式、会话比较 |
 | `/coach` | 任务前提示词指南 + 可复用模板 |
+| `/setup-project` | 项目级捕获设置（启用、禁用、自定义仓库） |
 
 ### review
 
@@ -62,7 +63,6 @@ git push         # 提示词自动捕获
 | `/review --status` | 显示配置 + 最近的 PR |
 | `/review --doctor` | 检查前置条件 (git, gh, jq) |
 | `/review --setup` | 重新配置设置 |
-| `/review add/remove/list` | 管理跟踪项目 |
 
 ### insights
 
@@ -79,6 +79,17 @@ git push         # 提示词自动捕获
 |------|------|
 | `/coach` | 基于上下文的提示词编写建议 |
 | `/coach template save/list/use/delete` | 管理可复用模板 |
+
+### setup-project
+
+| 命令 | 动作 |
+|------|------|
+| `/setup-project` | 显示当前项目捕获状态 |
+| `/setup-project on` | 启用当前项目的捕获 |
+| `/setup-project on --repo R` | 使用特定审查仓库启用捕获 |
+| `/setup-project off` | 禁用捕获（自动跳过） |
+| `/setup-project list` | 显示所有项目设置 |
+| `/setup-project reset` | 重新启用对已跳过项目的询问 |
 
 ### 自动流程
 
@@ -168,30 +179,12 @@ git push         # 提示词自动捕获
 
 ---
 
-## 从 v1.x 迁移
-
-| v1.x 命令 | v2.0 命令 |
-|-----------|----------|
-| `/setup` | `/review --doctor` |
-| `/prompt-review` | `/review` |
-| `/prompt-feedback` | `/score` |
-| `/prompt-stats` | `/insights` |
-| `/prompt-tips` | `/coach` |
-| `/prompt-replay` | `/insights patterns` |
-| `/prompt-compare #1 #2` | `/insights compare #1 #2` |
-| `/prompt-template save X` | `/coach template save X` |
-
-> **注意：** v1.x 命令仍然可用 — 它们会显示弃用通知并自动重定向到 v2.0 对应命令。
-
----
-
 ## 故障排除
 
 | 问题 | 解决方案 |
 |------|---------|
 | 安装后 Hook 不工作 | 重启 Claude Code 会话以重新加载插件 hook |
-| 旧命令不工作 | 更新插件：`/plugin install prompt-craft` |
-| 升级后配置错误 | 删除 `~/.claude/prompt-review.config.json` 后运行 `/review` 重新配置 |
+| 配置错误 | 删除 `~/.claude/prompt-review.config.json` 后运行 `/setup` 重新配置 |
 
 ---
 

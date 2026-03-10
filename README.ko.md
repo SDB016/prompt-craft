@@ -52,6 +52,7 @@ git push         # 프롬프트 자동 캡처
 | `/score` | 로컬 스코어링 + 개선 팁 (`--verbose`) |
 | `/insights` | 점수 트렌드, 고점수 패턴, 세션 비교 |
 | `/coach` | 작업 전 프롬프트 가이드 + 재사용 템플릿 |
+| `/setup-project` | 프로젝트별 캡처 설정 (활성화, 비활성화, 커스텀 저장소) |
 
 ### review
 
@@ -62,7 +63,6 @@ git push         # 프롬프트 자동 캡처
 | `/review --status` | 설정 + 최근 PR 표시 |
 | `/review --doctor` | 사전 요건 확인 (git, gh, jq) |
 | `/review --setup` | 설정 재구성 |
-| `/review add/remove/list` | 추적 프로젝트 관리 |
 
 ### insights
 
@@ -79,6 +79,17 @@ git push         # 프롬프트 자동 캡처
 |--------|------|
 | `/coach` | 맥락 기반 프롬프트 작성 팁 |
 | `/coach template save/list/use/delete` | 재사용 템플릿 관리 |
+
+### setup-project
+
+| 명령어 | 동작 |
+|--------|------|
+| `/setup-project` | 현재 프로젝트 캡처 상태 표시 |
+| `/setup-project on` | 현재 프로젝트 캡처 활성화 |
+| `/setup-project on --repo R` | 특정 리뷰 저장소로 캡처 활성화 |
+| `/setup-project off` | 캡처 비활성화 (자동 건너뜀) |
+| `/setup-project list` | 전체 프로젝트 설정 표시 |
+| `/setup-project reset` | 건너뛴 프로젝트 다시 질문 활성화 |
 
 ### 자동 흐름
 
@@ -168,30 +179,12 @@ git push         # 프롬프트 자동 캡처
 
 ---
 
-## v1.x에서 마이그레이션
-
-| v1.x 명령어 | v2.0 명령어 |
-|-------------|------------|
-| `/setup` | `/review --doctor` |
-| `/prompt-review` | `/review` |
-| `/prompt-feedback` | `/score` |
-| `/prompt-stats` | `/insights` |
-| `/prompt-tips` | `/coach` |
-| `/prompt-replay` | `/insights patterns` |
-| `/prompt-compare #1 #2` | `/insights compare #1 #2` |
-| `/prompt-template save X` | `/coach template save X` |
-
-> **참고:** v1.x 명령어도 여전히 동작합니다 — 지원 중단 안내를 보여주고 자동으로 v2.0 명령어로 리디렉션됩니다.
-
----
-
 ## 문제 해결
 
 | 문제 | 해결 |
 |------|------|
 | 설치 후 Hook이 작동하지 않음 | Claude Code 세션을 재시작하여 플러그인 hook을 다시 로드 |
-| 이전 명령어가 작동하지 않음 | 플러그인 업데이트: `/plugin install prompt-craft` |
-| 업그레이드 후 설정 오류 | `~/.claude/prompt-review.config.json` 삭제 후 `/review` 실행하여 재설정 |
+| 설정 오류 | `~/.claude/prompt-review.config.json` 삭제 후 `/setup` 실행하여 재설정 |
 
 ---
 
