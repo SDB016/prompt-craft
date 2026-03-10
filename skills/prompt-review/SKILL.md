@@ -368,9 +368,13 @@ if [ -n "$GH_TOKEN" ]; then
   git clone --no-single-branch "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
 fi
 if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  # HTTPS failed — try SSH variants
-  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
-    || git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+  # HTTPS failed — try SSH variants (clean dir between attempts)
+  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
+  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+fi
+if [ ! -d "$ARCHIVE_DIR/.git" ]; then
+  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
+  git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
     || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
 fi
 
@@ -505,8 +509,12 @@ if [ -n "$GH_TOKEN" ]; then
   git clone --no-single-branch "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
 fi
 if [ ! -d "$ARCHIVE_DIR/.git" ]; then
-  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
-    || git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
+  git clone --no-single-branch "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+fi
+if [ ! -d "$ARCHIVE_DIR/.git" ]; then
+  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
+  git clone --no-single-branch "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
     || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
 fi
 cd "$ARCHIVE_DIR"
@@ -592,8 +600,19 @@ PR_BODY_FILE="$(mktemp)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR" "$PR_BODY_FILE"' EXIT
 
 echo "  [1/5] Cloning review repository..."
-GH_TOKEN=$(gh auth token)
-git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR"
+GH_TOKEN=$(gh auth token 2>/dev/null || true)
+if [ -n "$GH_TOKEN" ]; then
+  git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+fi
+if [ ! -d "$ARCHIVE_DIR/.git" ]; then
+  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
+  git clone --depth 1 "git@github.com:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null
+fi
+if [ ! -d "$ARCHIVE_DIR/.git" ]; then
+  rm -rf "$ARCHIVE_DIR" && ARCHIVE_DIR="$(mktemp -d)"
+  git clone --depth 1 "git@github-personal:${REPO}.git" "$ARCHIVE_DIR" 2>/dev/null \
+    || { echo "Error: Cannot clone $REPO via HTTPS or SSH"; exit 0; }
+fi
 
 echo "  [2/5] Creating branch..."
 cd "$ARCHIVE_DIR"
