@@ -92,6 +92,70 @@ run_scan "BEARER_TOKEN"     '[Aa]uthorization:[[:space:]]*[Bb]earer[[:space:]]+[
 # npm tokens
 run_scan "NPM_TOKEN"        'npm_[a-zA-Z0-9]{36}'
 
+# === Cloud Provider Keys ===
+
+# Azure Storage Account Key (context-aware)
+run_scan "AZURE_STORAGE_KEY" '[Aa]ccount[Kk]ey[[:space:]]*=[[:space:]]*[a-zA-Z0-9+/]{86}=='
+
+# Azure SAS Token
+run_scan "AZURE_SAS_TOKEN"   'AccountKey=[a-zA-Z0-9+/]{86}=='
+
+# Azure Connection String
+run_scan "AZURE_CONN_STR"    'DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[a-zA-Z0-9+/]{86}=='
+
+# Azure generic key (bare 86-char base64 + ==)
+run_scan "AZURE_KEY"         '[a-zA-Z0-9+/]{86}=='
+
+# Vercel token (prefix-based)
+run_scan "VERCEL_TOKEN"      'vercel_[a-zA-Z0-9]{24,}'
+
+# Supabase project API key (prefix-based)
+run_scan "SUPABASE_KEY"      'sbp_[a-zA-Z0-9]{40,}'
+
+# Supabase JWT (HS256 header prefix)
+run_scan "SUPABASE_JWT"      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+'
+
+# Cloudflare API Token (prefix-based)
+run_scan "CLOUDFLARE_TOKEN"  'cf_[a-zA-Z0-9_-]{37,}'
+
+# === Communication Services ===
+
+# Twilio Account SID
+# NOTE: TWILIO_AUTH pattern ([a-f0-9]{32}) is broad and may produce false positives;
+#       treat as advisory and pair with nearby "twilio" keyword for confirmation
+run_scan "TWILIO_SID"        'AC[a-f0-9]{32}'
+run_scan "TWILIO_AUTH"       '[a-f0-9]{32}'
+
+# SendGrid API Key
+run_scan "SENDGRID_KEY"      'SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}'
+
+# Discord Bot Token
+run_scan "DISCORD_TOKEN"     '[MN][a-zA-Z0-9]{23,}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27,}'
+
+# === Database URIs ===
+
+# MySQL connection string
+run_scan "MYSQL_URI"         'mysql(2)?://[^[:space:]]+'
+
+# Redis connection string
+run_scan "REDIS_URI"         'redis(s)?://[^[:space:]]+'
+
+# AMQP / RabbitMQ connection string
+run_scan "AMQP_URI"          'amqps?://[^[:space:]]+'
+
+# === Token Formats ===
+
+# JWT generic (three Base64url segments)
+run_scan "JWT_TOKEN"         'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*'
+
+# Generic Base64-encoded secret (long encoded strings in key assignments)
+run_scan "BASE64_SECRET"     '(secret|key|token|password|credential)[[:space:]]*[:=][[:space:]]*[A-Za-z0-9+/]{40,}={0,2}'
+
+# === Network Info ===
+
+# Internal IP addresses (RFC 1918 ranges)
+run_scan "INTERNAL_IP"       '(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})'
+
 # Output results
 for detection in ${DETECTIONS[@]+"${DETECTIONS[@]}"}; do
   echo "$detection"

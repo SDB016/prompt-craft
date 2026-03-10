@@ -94,9 +94,22 @@ fi
 gh repo view "$REPO" --json name 2>/dev/null \
   && echo "REPO_ACCESSIBLE=true" \
   || echo "REPO_ACCESSIBLE=false"
+
+# Check repo visibility
+IS_PRIVATE=$(gh repo view "$REPO" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "unknown")
+echo "REPO_IS_PRIVATE=$IS_PRIVATE"
 ```
 
 If not accessible, offer to create the repo or try a different name.
+
+If `REPO_IS_PRIVATE=false` (public repo), show warning:
+
+**Question:** "Warning: `{REPO}` is a **public repository**. Your prompt session data (including all prompts and code diffs) will be publicly visible. How would you like to proceed?"
+
+**Options:**
+1. **Use anyway** — I understand my data will be public
+2. **Choose a different repo** — Go back to repo selection
+3. **Make it private first** — Run `gh repo edit {REPO} --visibility private` then continue
 
 ---
 
@@ -191,6 +204,17 @@ This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is 
 - **Suggest improvements.** For any criterion below 70% of its max, write a concrete "Instead of / Try" rewrite fragment. Omit the Improvement Suggestions section entirely if all criteria score well.
 - **Analyze Prompt Gaps (Gap 2).** When a prompt defect led to a code defect, frame it as "Prompt Gap: {prompt deficiency} → {code consequence}". Example: "Missing exit criteria → Claude modified db/sessions.ts beyond stated scope". This is how AI code review is integrated — not as a separate section, but as cause→effect chains linking prompt quality to code outcomes.
 - **Flag constraint violations.** In the Code Impact table, mark files that were changed against stated constraints with "**Flagged: constraint violation**".
+- **Sanitize user content for markdown.** When embedding user prompts in markdown files, escape characters that could break markdown structure: backtick sequences (` ``` `), pipe characters in table rows, and raw HTML tags. Use fenced code blocks for prompt text (already done) which provides natural escaping. For commit messages and branch names appearing in markdown, strip or escape special characters. The utility at `${CLAUDE_SKILL_DIR}/utils/sanitize-markdown.sh` can be used to validate generated content.
+
+### Payload Limits
+
+To prevent oversized push records:
+
+| Limit | Value | Behavior |
+|-------|-------|----------|
+| Max file size | 1 MB | Abort push record creation if generated file exceeds 1 MB |
+| Max prompt length | 10,000 chars | Truncate individual prompt text at 10,000 chars with `[truncated]` note |
+| Max prompts per record | 100 | Include first 100 prompts; add `> Note: N additional prompts omitted` footer |
 
 ### Output Format
 
@@ -268,10 +292,33 @@ score:
 CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
 [ -f "$CONFIG_FILE" ] || exit 0
 
+# Rate limiting: skip if last push was within 30 seconds
+STATE_FILE="$HOME/.claude/prompt-review-state.json"
+if [ -f "$STATE_FILE" ]; then
+  LAST_PUSH=$(jq -r '.last_push_ts // 0' "$STATE_FILE" 2>/dev/null || echo 0)
+  NOW_TS=$(date +%s)
+  ELAPSED=$((NOW_TS - LAST_PUSH))
+  if [ "$ELAPSED" -lt 30 ]; then
+    echo "prompt-review: skipping push hook (rate limit: last push ${ELAPSED}s ago)" >&2
+    exit 0
+  fi
+fi
+
 REPO=$(jq -r '.repo' "$CONFIG_FILE")
 BASE_BRANCH=$(jq -r '.base_branch' "$CONFIG_FILE")
 BRANCH=$(git branch --show-current 2>/dev/null)
+BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._/-]//g' | head -c 200)
+if [ -z "$BRANCH" ]; then
+  echo "Error: Branch name is empty or invalid after sanitization." >&2
+  exit 1
+fi
 DATE=$(date +%Y-%m-%d)
+
+# Non-blocking visibility warning
+IS_PRIVATE=$(gh repo view "$REPO" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "unknown")
+if [ "$IS_PRIVATE" = "false" ]; then
+  echo "Warning: prompt-review repo '$REPO' is public. Session data will be publicly visible." >&2
+fi
 
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
@@ -308,9 +355,22 @@ PUSH_FILE="$SESSION_DIR/push-$(printf '%03d' $PUSH_NUM).md"
 # AI writes push file content following templates/push-record.md format
 # (Claude generates the content based on session context + git diff)
 
+# Size check: abort if push file exceeds 1 MB
+if [ -f "$PUSH_FILE" ]; then
+  FILE_SIZE=$(wc -c < "$PUSH_FILE" | tr -d ' ')
+  if [ "$FILE_SIZE" -gt 1048576 ]; then
+    echo "Error: Push record exceeds 1 MB limit (${FILE_SIZE} bytes). Aborting." >&2
+    exit 1
+  fi
+fi
+
 git add .
 git commit -m "push: $BRANCH push #$PUSH_NUM ($DATE)"
 git push origin "prompt-data/$BRANCH"
+
+# Update state file with last push timestamp
+mkdir -p "$(dirname "$STATE_FILE")"
+jq -n --argjson ts "$(date +%s)" '{"last_push_ts": $ts}' > "$STATE_FILE"
 ```
 
 ### Error Recovery
@@ -343,8 +403,20 @@ BASE_BRANCH=$(jq -r '.base_branch' "$CONFIG_FILE")
 BRANCH_PREFIX=$(jq -r '.branch_prefix' "$CONFIG_FILE")
 LABEL=$(jq -r '.label // "prompt-review"' "$CONFIG_FILE")
 
+# Check repo visibility
+IS_PRIVATE=$(gh repo view "$REPO" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "unknown")
+echo "REPO_IS_PRIVATE=$IS_PRIVATE"
+
 echo "READY"
 ```
+
+If `REPO_IS_PRIVATE=false` (public repo), show warning:
+
+**Question:** "Warning: `{REPO}` is a **public repository**. Your prompt session data will be publicly visible. Continue?"
+
+**Options:**
+1. **Continue** — I understand my data will be public
+2. **Abort** — Stop and let me switch to a private repo
 
 ---
 
@@ -354,6 +426,11 @@ Gather all push-*.md files for the current branch from the prompt repo:
 
 ```bash
 BRANCH=$(git branch --show-current 2>/dev/null)
+BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._/-]//g' | head -c 200)
+if [ -z "$BRANCH" ]; then
+  echo "Error: Branch name is empty or invalid after sanitization." >&2
+  exit 1
+fi
 ARCHIVE_DIR="$(mktemp -d)"
 trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
 
@@ -447,18 +524,58 @@ git commit -m "prompt-review: $PROJECT_BRANCH"
 git push origin "$BRANCH"
 
 echo "  [5/5] Creating PR..."
+
+# Determine quality label based on score
+# TOTAL_SCORE is set earlier when generating PR content
+if [ "${TOTAL_SCORE:-0}" -ge 90 ]; then
+  QUALITY_LABEL="prompt-quality/excellent"
+elif [ "${TOTAL_SCORE:-0}" -ge 70 ]; then
+  QUALITY_LABEL="prompt-quality/good"
+elif [ "${TOTAL_SCORE:-0}" -ge 50 ]; then
+  QUALITY_LABEL="prompt-quality/needs-work"
+else
+  QUALITY_LABEL="prompt-quality/poor"
+fi
+
+# Derive project slug label from REPO (owner/repo → project/repo)
+PROJECT_SLUG=$(echo "$REPO" | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
+PROJECT_LABEL="project/$PROJECT_SLUG"
+
+# Ensure labels exist in the review repo (idempotent)
+gh label create "prompt-quality/excellent" --color "0e8a16" --description "Score 90-100" --repo "$REPO" --force 2>/dev/null || true
+gh label create "prompt-quality/good"      --color "0075ca" --description "Score 70-89" --repo "$REPO" --force 2>/dev/null || true
+gh label create "prompt-quality/needs-work" --color "e4e669" --description "Score 50-69" --repo "$REPO" --force 2>/dev/null || true
+gh label create "prompt-quality/poor"      --color "d93f0b" --description "Score 0-49"  --repo "$REPO" --force 2>/dev/null || true
+gh label create "$PROJECT_LABEL"           --color "bfd4f2" --description "Project: $PROJECT_SLUG" --repo "$REPO" --force 2>/dev/null || true
+
 PR_URL=$(gh pr create \
   --repo "$REPO" \
   --base "$BASE_BRANCH" \
   --head "$BRANCH" \
   --title "$TITLE" \
   --body-file "$PR_BODY_FILE" \
-  --label "$LABEL")
+  --label "$LABEL" \
+  --label "$QUALITY_LABEL" \
+  --label "$PROJECT_LABEL")
 
 echo "Prompt review PR created: $PR_URL"
 echo "  Score: {TOTAL}/100 ({GRADE})"
 echo "  Assign a reviewer to start the prompt review."
 ```
+
+### Labels
+
+PRs are automatically labeled with:
+
+| Label | Applied when | Color |
+|-------|-------------|-------|
+| `prompt-quality/excellent` | Score 90–100 | Green |
+| `prompt-quality/good` | Score 70–89 | Blue |
+| `prompt-quality/needs-work` | Score 50–69 | Yellow |
+| `prompt-quality/poor` | Score 0–49 | Red |
+| `project/{slug}` | Always (derived from project repo name) | Light blue |
+
+Labels are created with `gh label create --force` before PR creation, so they are always available even in a fresh review repo.
 
 ---
 
@@ -517,3 +634,20 @@ Config file: `~/.claude/prompt-review.config.json`
 4. **Score to guide, not to gatekeep.** Scores are learning signals, not pass/fail gates.
 5. **Fail loudly, recover cleanly.** Stop on error with clear message and recovery command.
 6. **Full capture, simple state.** Each push saves the entire current session. Deduplication happens at PR creation time.
+
+---
+
+## PR Reading Levels
+
+Prompt review PRs use a 4-level progressive disclosure structure so reviewers can engage at the depth they choose:
+
+| Level | Section | Audience | What it shows |
+|-------|---------|----------|---------------|
+| **Level 1** | Score header | Everyone | Grade badge, total score, one-line summary — instant triage |
+| **Level 2** | Scorecard + Code Delta | Team leads, async reviewers | 8-criterion breakdown with progress bars + what code was produced |
+| **Level 3** | Prompt Sequence + Improvement Tips | Detailed reviewers | Verbatim prompts with per-prompt mini-scores, delta annotations, and concrete rewrite suggestions |
+| **Level 4** | Reviewer Checklist + Session Metadata | Deep reviewers, auditors | Structured checklist for leaving review comments + full YAML metadata |
+
+Levels 3 and 4 use `<details>` collapse blocks in the PR body so the PR remains scannable at a glance.
+
+> **Note on push records:** Push record files (`sessions/{branch}/push-NNN.md`) do **not** use `<details>` tags. Push records are committed directly to the `prompt-data/` branch and are consumed programmatically when building the PR — they must be plain markdown without HTML tags that would appear as raw text in git diffs.
