@@ -1,7 +1,7 @@
 #!/bin/bash
 # prompt-review PostToolUse hook
 # Detects git push and gh pr create inside Claude Code,
-# then prompts Claude to run the prompt-review skill via official JSON protocol.
+# then prompts Claude to run the review skill via official JSON protocol.
 #
 # Protocol: exit 0 + JSON { decision: "block", reason, hookSpecificOutput } → prompts Claude
 # Registration: auto-registered via hooks/hooks.json (no manual install needed)
@@ -90,11 +90,11 @@ if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \
 \"I noticed you pushed from $PROJECT_ID, but prompt review isn't tracking this project yet. Enable prompt capture for this project?\"
 
 Options (use AskUserQuestion):
-1. Yes, enable for this project — add \"$PROJECT_ID\" to the projects array in ~/.claude/prompt-review.config.json using jq, then run /prompt-craft:prompt-review --push
-2. Not now — store dismissal in ~/.claude/prompt-review-state.json: set .dismissed_projects[\"$PROJECT_ID\"] to current ISO timestamp. Do NOT run prompt-review.
-3. Never for this project — store permanent dismissal: set .dismissed_projects[\"$PROJECT_ID\"] to \"permanent\". Do NOT run prompt-review.
+1. Yes, enable for this project — add \"$PROJECT_ID\" to the projects array in ~/.claude/prompt-review.config.json using jq, then run /prompt-craft:review --push
+2. Not now — store dismissal in ~/.claude/prompt-review-state.json: set .dismissed_projects[\"$PROJECT_ID\"] to current ISO timestamp. Do NOT run review.
+3. Never for this project — store permanent dismissal: set .dismissed_projects[\"$PROJECT_ID\"] to \"permanent\". Do NOT run review.
 
-If the user says yes, after adding the project, proceed to run the prompt-review --push skill." \
+If the user says yes, after adding the project, proceed to run the review --push skill." \
       '{
         continue: true,
         decision: "block",
@@ -110,14 +110,14 @@ If the user says yes, after adding the project, proceed to run the prompt-review
   # Project is in allowlist — proceed with normal capture
   if [[ "$PROJECT_IN_LIST" == "true" ]]; then
     jq -n \
-      --arg reason '[PROMPT CAPTURE] git push detected. Run /prompt-craft:prompt-review --push to capture session prompts.' \
-      --arg context 'You MUST use the Skill tool to run: /prompt-craft:prompt-review --push
+      --arg reason '[PROMPT CAPTURE] git push detected. Run /prompt-craft:review --push to capture session prompts.' \
+      --arg context 'You MUST use the Skill tool to run: /prompt-craft:review --push
 
 This skill captures all user prompts from this session and commits them to the configured prompt review repository. The push was successful — this is a post-push capture step that records session data for team review.
 
 Do NOT skip this step. Do NOT summarize with "push completed" without running the skill first.
 
-If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:prompt-review", args="--push"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/prompt-review/SKILL.md with ARGUMENTS="--push".' \
+If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:review", args="--push"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/review/SKILL.md with ARGUMENTS="--push".' \
       '{
         continue: true,
         decision: "block",
@@ -138,14 +138,14 @@ fi
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)gh\s+pr\s+create\b'; then
 
   jq -n \
-    --arg reason '[PROMPT REVIEW] gh pr create detected. Run /prompt-craft:prompt-review to create a scored prompt review PR.' \
-    --arg context 'You MUST use the Skill tool to run: /prompt-craft:prompt-review
+    --arg reason '[PROMPT REVIEW] gh pr create detected. Run /prompt-craft:review to create a scored prompt review PR.' \
+    --arg context 'You MUST use the Skill tool to run: /prompt-craft:review
 
 This skill aggregates all captured prompts, scores them against 8 quality criteria (100 points), and creates a prompt review PR in the configured review repository. The code PR was created successfully — now create the companion prompt review PR.
 
 Do NOT skip this step.
 
-If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:prompt-review"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/prompt-review/SKILL.md.' \
+If the Skill tool fails to resolve the skill name, try: Skill(skill="prompt-craft:review"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/review/SKILL.md.' \
     '{
       continue: true,
       decision: "block",

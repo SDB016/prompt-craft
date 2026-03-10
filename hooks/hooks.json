@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/prompt-review/hooks/prompt-review-hook.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/review/hooks/prompt-review-hook.sh\"",
             "timeout": 30
           }
         ]
