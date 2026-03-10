@@ -114,6 +114,16 @@ All 8 criteria are scored by LLM in a single evaluation call.
 **Commits:**
 {COMMIT_LIST}
 
+<!-- COMMIT_LIST format — link each SHA to the PROJECT repo (not the review repo):
+  - [`abc1234`](https://github.com/{PROJECT}/commit/{FULL_SHA}) {COMMIT_MESSAGE}
+-->
+
+**Code PR:** [{CODE_PR_TITLE}]({CODE_PR_URL})
+
+<!-- CODE_PR_URL: link to the original code PR in the project repo (if available).
+     Derived from the `gh pr create` event that triggered this prompt review.
+     If triggered manually, omit this line. -->
+
 ---
 
 <!-- LEVEL 3 ANNOTATED PROMPTS ─────────────────────────────────────────── -->
@@ -230,33 +240,14 @@ Do not refactor callers unless explicitly asked."
 <summary>Session Metadata</summary>
 
 ```yaml
-{SESSION_METADATA}
-```
-
-<!-- SESSION_METADATA format:
 session_id: {ID}
-triggered_by: {TRIGGER}
-push_count: {PUSH_COUNT}
-push_timestamps: [{PUSH_TIMES}]
-project_repo: {PROJECT}
-project_branch: {BRANCH}
-prompt_count: {PROMPT_COUNT}
-session_duration_minutes: {DURATION_MINUTES}
-score:
-  total: {TOTAL_SCORE}
-  goal_clarity: {G}
-  scope_control: {S}
-  context_sufficiency: {C}
-  exit_criteria: {E}
-  decomposition: {D}
-  verification_strategy: {V}
-  iteration_quality: {I}
-  complexity_fit: {CF}
-  grade: {GRADE}
-review_repo: {REVIEW_REPO}
-session_dir: sessions/{BRANCH}/
-tool_version: prompt-review/2.0
--->
+project: {PROJECT}
+branch: {BRANCH}
+date: {SESSION_DATE}
+score: {TOTAL_SCORE}/100 ({GRADE})
+prompts: {PROMPT_COUNT}
+pushes: {PUSH_COUNT}
+```
 
 </details>
 

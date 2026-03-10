@@ -261,29 +261,7 @@ Try:        "improved"
 | `path/to/file` | modified (+N, −M) | AI-generated description (**Flagged** if constraint violation) |
 
 ## Commits
-- `SHA` COMMIT_MESSAGE
-
-## Session Metadata
-\`\`\`yaml
-session_id: ...
-project_repo: OWNER/REPO
-project_branch: BRANCH
-prompt_count: N
-push_number: N
-triggered_by: git-push-hook
-date: YYYY-MM-DD
-score:
-  total: N
-  goal_clarity: G
-  scope_control: S
-  context_sufficiency: C
-  exit_criteria: E
-  decomposition: D
-  verification_strategy: V
-  iteration_quality: I
-  complexity_fit: CF
-  grade: GRADE
-\`\`\`
+- [`SHA`](https://github.com/OWNER/REPO/commit/SHA) COMMIT_MESSAGE
 ```
 
 ### Implementation

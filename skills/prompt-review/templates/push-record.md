@@ -116,31 +116,7 @@ Try:        "{{IMPROVED}}"
 
 ## Commits
 
-- `{{SHA}}` {{COMMIT_MESSAGE}}
+- [`{{SHA}}`](https://github.com/{{PROJECT_OWNER}}/{{PROJECT_REPO}}/commit/{{SHA}}) {{COMMIT_MESSAGE}}
 
-<!-- One line per commit, from git log -->
-
----
-
-## Session Metadata
-
-```yaml
-session_id: {{SESSION_ID}}
-project_repo: {{PROJECT_OWNER}}/{{PROJECT_REPO}}
-project_branch: {{BRANCH}}
-prompt_count: {{PROMPT_COUNT}}
-push_number: {{PUSH_NUM}}
-triggered_by: git-push-hook
-date: {{DATE}}
-score:
-  total: {{TOTAL_SCORE}}
-  goal_clarity: {{G}}
-  scope_control: {{S}}
-  context_sufficiency: {{C}}
-  exit_criteria: {{E}}
-  decomposition: {{D}}
-  verification_strategy: {{V}}
-  iteration_quality: {{I}}
-  complexity_fit: {{CF}}
-  grade: {{GRADE}}
-```
+<!-- One line per commit. Link each SHA to the project repo commit URL.
+     Format: [`SHORT_SHA`](https://github.com/OWNER/REPO/commit/FULL_SHA) message -->
