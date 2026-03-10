@@ -85,35 +85,21 @@ fi
 if echo "$COMMAND" | grep -qE '(^|&&\s*|\|\|\s*|;\s*)git\s+push\b' && \
    ! echo "$COMMAND" | grep -qE 'git\s+push\s+.*--(dry-run|delete)'; then
 
-  # Ask flow: project not in allow or deny
+  # Ask flow: project not in allow or deny — ask user, then delegate to /setup-project
   if [[ "$CAPTURE_DECISION" == "ask" ]]; then
     jq -n \
-      --arg reason "[PROMPT CRAFT] New project detected: $PROJECT_ID. Ask if the user wants to enable prompt capture." \
-      --arg context "Project \"$PROJECT_ID\" is not tracked for prompt capture yet. Ask the user using AskUserQuestion:
+      --arg reason "[PROMPT CRAFT] New project detected: $PROJECT_ID. Ask user whether to enable prompt capture." \
+      --arg project_id "$PROJECT_ID" \
+      --arg context "Project \"$PROJECT_ID\" is not tracked for prompt capture yet.
 
-\"Enable prompt capture for $PROJECT_ID?\"
-
+Ask the user using AskUserQuestion: \"Enable prompt capture for $PROJECT_ID?\"
 Options:
-1. Yes — enable capture for this project
-2. No — skip this project (won't ask again)
+1. Yes — enable capture
+2. No — skip this project
 
-If the user says YES:
-  Then ask: \"Which repo should prompt reviews go to? (default: $REVIEW_REPO)\"
-  Options:
-  1. Use default ($REVIEW_REPO)
-  2. Use a different repo — ask for owner/repo format
+If YES: use the Skill tool to run /prompt-craft:setup-project with args \"on\". The skill will ask which review repo to use and update config. After setup completes, run /prompt-craft:review --push to capture session prompts.
 
-  After getting the repo choice, update config:
-  - If using default repo:
-    jq --arg p \"$PROJECT_ID\" '.capture.projects[\$p] = {\"status\": \"allow\"}' ~/.claude/prompt-review.config.json > ~/.claude/prompt-review.config.json.tmp && mv ~/.claude/prompt-review.config.json.tmp ~/.claude/prompt-review.config.json
-  - If using custom repo:
-    jq --arg p \"$PROJECT_ID\" --arg r \"CUSTOM_REPO\" '.capture.projects[\$p] = {\"status\": \"allow\", \"repo\": \$r}' ~/.claude/prompt-review.config.json > ~/.claude/prompt-review.config.json.tmp && mv ~/.claude/prompt-review.config.json.tmp ~/.claude/prompt-review.config.json
-
-  Then run /prompt-craft:review --push
-
-If the user says NO:
-  jq --arg p \"$PROJECT_ID\" '.capture.projects[\$p] = {\"status\": \"deny\"}' ~/.claude/prompt-review.config.json > ~/.claude/prompt-review.config.json.tmp && mv ~/.claude/prompt-review.config.json.tmp ~/.claude/prompt-review.config.json
-  Do NOT run review." \
+If NO: use the Skill tool to run /prompt-craft:setup-project with args \"off\". This marks the project as denied — future pushes will be silently skipped." \
       '{
         continue: true,
         decision: "block",
