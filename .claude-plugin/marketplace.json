@@ -9,7 +9,7 @@
     {
       "name": "prompt-craft",
       "description": "Prompt quality improvement toolkit — review, score, and improve your AI prompts as a team via GitHub PRs. 8 criteria scoring, automatic capture, zero project footprint.",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "author": {
         "name": "SDB016"
       },
