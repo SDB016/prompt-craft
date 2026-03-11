@@ -112,29 +112,26 @@ If NO: use the Skill tool to run /prompt-craft:setup-project with args \"off\". 
     exit 0
   fi
 
-  # Capture flow: project is allowed
+  # Capture flow: project is allowed — write lightweight JSONL metadata (silent, non-blocking)
   if [[ "$CAPTURE_DECISION" == "capture" ]]; then
-    jq -n \
-      --arg reason '[PROMPT CAPTURE] git push detected. Run /prompt-craft:review --push to capture session prompts.' \
-      --arg effective_repo "$EFFECTIVE_REPO" \
-      --arg context "You MUST use the Skill tool to run: /prompt-craft:review --push
+    BRANCH=$(git -C "${CWD:-.}" branch --show-current 2>/dev/null || echo "unknown")
+    SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // ""')
+    PUSHLOG="$HOME/.claude/prompt-review-pushlog.jsonl"
+    mkdir -p "$(dirname "$PUSHLOG")"
 
-This skill captures all user prompts from this session and commits them to the configured prompt review repository. The push was successful — this is a post-push capture step that records session data for team review.
+    # Record push metadata locally — no clone, no scoring, no network
+    jq -n -c \
+      --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --arg project "$PROJECT_ID" \
+      --arg branch "$BRANCH" \
+      --arg session_id "$SESSION_ID" \
+      --arg cwd "${CWD:-.}" \
+      --arg repo "$EFFECTIVE_REPO" \
+      '{ts: $ts, project: $project, branch: $branch, session_id: $session_id, cwd: $cwd, repo: $repo}' \
+      >> "$PUSHLOG"
 
-Review repo for this project: $EFFECTIVE_REPO (use this instead of the default if it differs from config .repo).
-
-Do NOT skip this step. Do NOT summarize with \"push completed\" without running the skill first.
-
-If the Skill tool fails to resolve the skill name, try: Skill(skill=\"prompt-craft:review\", args=\"--push\"). As a last resort, read and follow the instructions in the SKILL.md file at the plugin root: skills/review/SKILL.md with ARGUMENTS=\"--push\"." \
-      '{
-        continue: true,
-        decision: "block",
-        reason: $reason,
-        hookSpecificOutput: {
-          hookEventName: "PostToolUse",
-          additionalContext: $context
-        }
-      }'
+    # Silent — no blocking, no Claude involvement, no approval needed
+    echo '{"continue":true,"suppressOutput":true}'
     exit 0
   fi
 

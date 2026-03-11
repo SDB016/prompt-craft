@@ -18,16 +18,17 @@ Captures prompts and code changes from Claude Code sessions, scores prompt quali
 
 ## How It Works: Two-Phase Capture
 
-| Event | What happens | In prompt repo |
-|-------|-------------|----------------|
-| `git push` (inside Claude Code) | Capture session prompts + diff | **Commit only** (no PR) |
-| `gh pr create` (inside Claude Code) | Aggregate all commits + score | **Create PR** |
-| `/review` (manual) | Create PR at desired time | **Create PR** |
+| Event | What happens | Where |
+|-------|-------------|-------|
+| `git push` (inside Claude Code) | Record push metadata silently | **Local JSONL** (~/.claude/prompt-review-pushlog.jsonl) |
+| `gh pr create` (inside Claude Code) | Score prompts + create review PR | **Review repo PR** |
+| `/review` (manual) | Create review PR at desired time | **Review repo PR** |
+| `/score` (manual) | Score prompts locally, cache results | **Local cache** (optional, bonus) |
 
 This means:
-- During development, each push records prompts incrementally
-- When the feature is done (code PR created), the prompt review PR is also created
-- Multi-session and multi-day work is naturally supported
+- During development, each push silently records metadata (zero friction, no network)
+- When the feature is done (code PR created or `/review` run), prompts are scored and the review PR is created
+- `/score` results are cached locally and reused by `/review` (if available)
 
 ---
 
@@ -35,7 +36,6 @@ This means:
 
 - If `$ARGUMENTS` contains `--doctor` → jump to **[DOCTOR]**
 - If `$ARGUMENTS` contains `--setup` → jump to **[SETUP WIZARD]**
-- If `$ARGUMENTS` contains `--push` → jump to **[PUSH HOOK]**
 - If `$ARGUMENTS` contains `--status` → jump to **[STATUS DISPLAY]**
 - If `$ARGUMENTS` matches project management intent (add, remove, list, projects) → jump to **[PROJECT MANAGEMENT]** (redirects to `/setup-project`)
 - If no config exists at `~/.claude/prompt-review.config.json` → run **[LAZY SETUP]** first
@@ -454,218 +454,74 @@ gh pr list --repo "$REPO" --label "$LABEL" --limit 10 \
 
 ---
 
-## [PUSH HOOK] — Record on git push
+## [PUSH HOOK] — Silent metadata recording on git push
 
-This runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is detected.
+The push hook runs automatically via Claude Code Hook (`PostToolUse`) when `git push` is detected. It is designed to be **invisible**: no blocking, no Claude involvement, no approval prompts, no network operations.
 
-### What It Captures
+### What It Does
 
-1. **All prompts** from the current session — **VERBATIM full text, not summaries**
-2. **User decisions** — AskUserQuestion selections (question → answer pairs)
-3. **Prompt quality score** — 8-criteria scorecard (100 points) with per-prompt mini-scores
-4. **Improvement suggestions** — concrete rewrite fragments for low-scoring criteria
-5. **Git diff summary** — per-file change table with +/- counts
-6. **File change summaries** — AI-generated one-line summary per changed file (flag constraint violations)
-7. **Commit list** — SHAs and messages
-8. **Session metadata** — YAML block with session ID, branch, counts, and score breakdown
+The shell hook script (`skills/review/hooks/prompt-review-hook.sh`) appends one JSONL line to `~/.claude/prompt-review-pushlog.jsonl`:
 
-### Critical Rules
+```json
+{"ts":"2026-03-11T14:30:00Z","project":"owner/repo","branch":"feat/foo","session_id":"...","cwd":"/path/to/project","repo":"owner/reviews"}
+```
 
-- **Respect language setting.** Check `language` in config (`~/.claude/prompt-review.config.json`):
-  - `"auto"` (or absent): Detect the dominant language of user prompts in this session. Write Finding, Summary, Improvement Suggestions, delta descriptions, and commit messages in that language.
-  - Explicit code (e.g. `"ko"`, `"en"`, `"ja"`): Use that language for the above content.
-  - Template structure (section headers, table column names, badge labels like "Excellent"/"Good"/"Needs Work"/"Poor", metadata keys) **always remains in English** regardless of language setting.
-- **VERBATIM prompts only.** Paste the EXACT, COMPLETE text of every user prompt. Do NOT summarize, paraphrase, or shorten. Do NOT add "Intent:" labels. If a user typed 5 lines, include all 5 lines.
-- **Follow the template exactly.** Use `${CLAUDE_SKILL_DIR}/templates/push-record.md` as the format reference.
-- **One section per prompt.** Each prompt gets its own `### Prompt N {MINI_BADGE}` block with a fenced code block containing the raw text, followed by per-prompt mini-scores: `<sub>Goal G/20 · Exit E/10 · Scope S/15 · Context C/15</sub>`.
-- **Capture user decisions.** When AskUserQuestion selections follow a prompt, add a `### Decisions after Prompt N` block with a table of question → selected answer pairs.
-- **Score all prompts.** Evaluate the entire prompt sequence against 8 criteria (see Step C-3 scoring table). Include the Scorecard table and grade badge in the push record header.
-- **Suggest improvements.** For any criterion below 70% of its max, write a concrete "Instead of / Try" rewrite fragment. Omit the Improvement Suggestions section entirely if all criteria score well.
-- **Analyze Prompt Gaps (Gap 2).** When a prompt defect led to a code defect, frame it as "Prompt Gap: {prompt deficiency} → {code consequence}". Example: "Missing exit criteria → Claude modified db/sessions.ts beyond stated scope". This is how AI code review is integrated — not as a separate section, but as cause→effect chains linking prompt quality to code outcomes.
-- **Flag constraint violations.** In the Code Impact table, mark files that were changed against stated constraints with "**Flagged: constraint violation**".
-- **Sanitize user content for markdown.** When embedding user prompts in markdown files, escape characters that could break markdown structure: backtick sequences (` ``` `), pipe characters in table rows, and raw HTML tags. Use fenced code blocks for prompt text (already done) which provides natural escaping. For commit messages and branch names appearing in markdown, strip or escape special characters. The utility at `${CLAUDE_SKILL_DIR}/utils/sanitize-markdown.sh` can be used to validate generated content.
+**That's it.** No cloning, no scoring, no AI generation, no remote push. The entire hook runs in <100ms.
 
-### Payload Limits
+### What It Does NOT Do
 
-To prevent oversized push records:
+- Does NOT capture prompt text (prompts live in Claude's session context, inaccessible to shell hooks)
+- Does NOT score prompts (scoring happens at `/review` time)
+- Does NOT write to the review repo (all git operations happen at `/review` time)
+- Does NOT block Claude or require user approval
 
-| Limit | Value | Behavior |
-|-------|-------|----------|
-| Max file size | 1 MB | Abort push record creation if generated file exceeds 1 MB |
-| Max prompt length | 10,000 chars | Truncate individual prompt text at 10,000 chars with `[truncated]` note |
-| Max prompts per record | 100 | Include first 100 prompts; add `> Note: N additional prompts omitted` footer |
+### JSONL Schema
 
-### Output Format
+| Field | Type | Description |
+|-------|------|-------------|
+| `ts` | ISO 8601 | UTC timestamp of the push |
+| `project` | string | `owner/repo` of the project being pushed |
+| `branch` | string | Branch that was pushed |
+| `session_id` | string | Claude Code session ID |
+| `cwd` | string | Working directory at push time |
+| `repo` | string | Effective review repo for this project |
 
-Creates a file in the prompt repo: `sessions/{branch-name}/push-{NNN}.md`
+### How Data Flows to `/review`
 
-The push file MUST contain ALL of these sections (see `templates/push-record.md` for full template):
+```
+git push ──→ JSONL append (silent)
+                  │
+                  ▼
+/review   ──→ Read JSONL for push boundaries
+          ──→ Collect prompts from session context
+          ──→ Score + generate prompts.md, summary.md
+          ──→ Clone review repo, commit, push, create PR
+```
 
-```markdown
-# Push #N — BRANCH (DATE)
-> GRADE_BADGE **Score: TOTAL/100** | Session: SESSION_ID | Prompts: COUNT | Trigger: git-push-hook
+At `/review` time (Step C-2), the JSONL provides per-push metadata (timestamps, branches, commits). Prompts are collected from Claude's current session context. This means:
+- **Single-session workflows** (most common): All prompts are available. Full fidelity.
+- **Multi-session workflows**: Prompts from previous sessions may not be available. Code changes are still tracked via git history. Consider running `/score` between sessions to cache prompt scores locally.
 
-## Prompt Quality Scorecard
-| | Criterion | Score | Progress | Finding |
-|---|---|---|---|---|
-| ICON | **Goal Clarity** | G/20 | PROGRESS_BAR | one-line finding |
-(all 8 criteria...)
+### Capture Modes
 
-## Prompt Sequence
-### Prompt 1 MINI_BADGE
-\`\`\`
-(VERBATIM full text of what the user typed — NEVER summarize)
-\`\`\`
-<sub>Goal G/20 · Exit E/10 · Scope S/15 · Context C/15</sub>
-<!-- delta: one-line description of what changed after this prompt -->
-(repeat for every prompt in the session)
+The hook respects the same `capture.mode` and per-project `status` settings as before:
 
-### Decisions after Prompt N
-| Question | Selected |
+| Scenario | Behavior |
 |----------|----------|
-| question text | selected answer |
+| Project `status: "allow"` | Append JSONL entry silently |
+| Project `status: "deny"` | Skip silently (`suppressOutput`) |
+| New project, `mode: "ask"` | Block Claude to ask user (one-time only) |
+| New project, `mode: "all"` | Append JSONL entry silently |
 
-## Improvement Suggestions
-(only for criteria below 70% of max — omit if all score well)
-### Criterion (scored SCORE/MAX)
-> What was missing
-**Suggested rewrite:**
-Instead of: "original"
-Try:        "improved"
+The "ask" flow for new projects still uses `decision: "block"` since it requires user interaction. Once the user chooses allow/deny, subsequent pushes are silent.
 
-## Code Impact
-> N files changed, +INSERTIONS −DELETIONS
-| File | Change | Summary |
-|------|--------|---------|
-| `path/to/file` | modified (+N, −M) | AI-generated description (**Flagged** if constraint violation) |
+### File Location
 
-## Commits
-- [`SHA`](https://github.com/OWNER/REPO/commit/SHA) COMMIT_MESSAGE
+```
+~/.claude/prompt-review-pushlog.jsonl
 ```
 
-### Implementation
-
-```bash
-CONFIG_FILE="$HOME/.claude/prompt-review.config.json"
-[ -f "$CONFIG_FILE" ] || exit 0
-
-# Rate limiting: skip if last push was within 30 seconds
-STATE_FILE="$HOME/.claude/prompt-review-state.json"
-if [ -f "$STATE_FILE" ]; then
-  LAST_PUSH=$(jq -r '.last_push_ts // 0' "$STATE_FILE" 2>/dev/null || echo 0)
-  NOW_TS=$(date +%s)
-  ELAPSED=$((NOW_TS - LAST_PUSH))
-  if [ "$ELAPSED" -lt 30 ]; then
-    echo "prompt-review: skipping push hook (rate limit: last push ${ELAPSED}s ago)" >&2
-    exit 0
-  fi
-fi
-
-REPO=$(jq -r '.repo' "$CONFIG_FILE")
-BASE_BRANCH=$(jq -r '.base_branch' "$CONFIG_FILE")
-LANGUAGE=$(jq -r '.language // "auto"' "$CONFIG_FILE")
-BRANCH=$(git branch --show-current 2>/dev/null)
-BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._/-]//g' | head -c 200)
-if [ -z "$BRANCH" ]; then
-  echo "Error: Branch name is empty or invalid after sanitization." >&2
-  exit 1
-fi
-DATE=$(date +%Y-%m-%d)
-REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
-PROJECT_SLUG=$(echo "$REMOTE_URL" | sed -E 's#^.*[:/]([^/]+/)?##; s#\.git$##')
-
-# Resolve clone URL (lightweight ls-remote probe, no full clone)
-CLONE_URL=""
-GH_TOKEN=$(gh auth token 2>/dev/null || true)
-if [ -n "$GH_TOKEN" ]; then
-  HTTPS_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-  git ls-remote "$HTTPS_URL" HEAD &>/dev/null && CLONE_URL="$HTTPS_URL"
-fi
-[ -z "$CLONE_URL" ] && git ls-remote "git@github.com:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github.com:${REPO}.git"
-[ -z "$CLONE_URL" ] && git ls-remote "git@github-personal:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github-personal:${REPO}.git"
-[ -z "$CLONE_URL" ] && { echo "Error: Cannot access $REPO via HTTPS or SSH"; exit 0; }
-
-# Check if project branch exists remotely
-REMOTE_BRANCH="$PROJECT_SLUG/$BRANCH"
-if git ls-remote --heads "$CLONE_URL" "$REMOTE_BRANCH" 2>/dev/null | grep -q .; then
-  TARGET_BRANCH="$REMOTE_BRANCH"
-else
-  TARGET_BRANCH="$BASE_BRANCH"
-fi
-
-# Shallow clone of only the needed branch
-ARCHIVE_DIR="$(mktemp -d)"
-trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
-git clone --depth 1 --branch "$TARGET_BRANCH" "$CLONE_URL" "$ARCHIVE_DIR"
-cd "$ARCHIVE_DIR"
-
-# If we cloned base branch, create the project branch
-if [ "$TARGET_BRANCH" = "$BASE_BRANCH" ]; then
-  git checkout -b "$REMOTE_BRANCH"
-fi
-
-# Create session directory and determine push number
-SESSION_DIR="$ARCHIVE_DIR/sessions/$PROJECT_SLUG/$BRANCH"
-mkdir -p "$SESSION_DIR"
-PUSH_NUM=$(ls "$SESSION_DIR"/push-*.md 2>/dev/null | wc -l | tr -d ' ')
-PUSH_NUM=$((PUSH_NUM + 1))
-PUSH_FILE="$SESSION_DIR/push-$(printf '%03d' $PUSH_NUM).md"
-
-# === AI FILE GENERATION STEP (not bash — Claude performs this) ===
-# You MUST generate the push record content and write it to $PUSH_FILE before continuing.
-#
-# 1. Collect ALL user prompts from your current session context (verbatim, not summarized)
-# 2. Run: git log --oneline $(git merge-base HEAD origin/$BASE_BRANCH)..HEAD
-# 3. Run: git diff --stat $(git merge-base HEAD origin/$BASE_BRANCH)..HEAD
-# 4. Score all prompts against the 8 criteria (see Step C-3 scoring table)
-# 5. Format everything per ${CLAUDE_SKILL_DIR}/templates/push-record.md
-# 6. Apply language setting ($LANGUAGE):
-#    - "auto": detect the dominant language of user prompts; write Finding,
-#      Summary, Improvement Suggestions, delta descriptions, and the commit
-#      message topic in that language.
-#    - Explicit code (e.g. "ko"): use that language for the above content.
-#    - Section headers, table column names, and badge labels stay in English.
-# 7. Write the result to $PUSH_FILE using the Write tool or cat <<'EOF' > "$PUSH_FILE"
-# 8. Set COMMIT_SUMMARY to a concise one-line summary of the session's work
-#    (e.g. "add circle diameter endpoint and negative input auto-correction").
-#    This becomes the commit message. Write in the $LANGUAGE setting.
-# 9. Then continue with the size check and git commit below.
-# ===
-
-# Size check: abort if push file exceeds 1 MB
-if [ -f "$PUSH_FILE" ]; then
-  FILE_SIZE=$(wc -c < "$PUSH_FILE" | tr -d ' ')
-  if [ "$FILE_SIZE" -gt 1048576 ]; then
-    echo "Error: Push record exceeds 1 MB limit (${FILE_SIZE} bytes). Aborting." >&2
-    exit 1
-  fi
-fi
-
-git add .
-# COMMIT_SUMMARY is set by the AI generation step above.
-# It should be a concise one-line summary of what this session accomplished
-# (e.g. "add circle diameter endpoint and negative input auto-correction").
-# Write in the language determined by $LANGUAGE setting.
-git commit -m "$COMMIT_SUMMARY (#$PUSH_NUM)"
-git push origin "$PROJECT_SLUG/$BRANCH"
-
-# Update state file with last push timestamp
-mkdir -p "$(dirname "$STATE_FILE")"
-if [ -f "$STATE_FILE" ]; then
-  jq --argjson ts "$(date +%s)" '.last_push_ts = $ts' "$STATE_FILE" > "${STATE_FILE}.tmp" \
-    && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-else
-  jq -n --argjson ts "$(date +%s)" '{"last_push_ts": $ts}' > "$STATE_FILE"
-fi
-```
-
-### Error Recovery
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| HTTPS clone fails | SSH-only auth or multi-account setup | Script auto-falls back to SSH |
-| Branch already exists | Previous push created it | Script fetches and checks out existing branch |
-| Push number conflict | Race condition | Script counts existing files to determine next number |
+This file grows by one line per push. At ~150 bytes per entry, 1000 pushes = ~150KB. No cleanup needed for typical usage.
 
 ---
 
@@ -707,9 +563,9 @@ If `REPO_IS_PRIVATE=false` (public repo), show warning:
 
 ---
 
-### Step C-2: Collect Push Records
+### Step C-2: Collect Push Metadata and Session Prompts
 
-Gather all push-*.md files for the current branch from the prompt repo:
+Read push metadata from the local JSONL log, then collect prompts from the current session context.
 
 ```bash
 BRANCH=$(git branch --show-current 2>/dev/null)
@@ -720,48 +576,33 @@ if [ -z "$BRANCH" ]; then
 fi
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
 PROJECT_SLUG=$(echo "$REMOTE_URL" | sed -E 's#^.*[:/]([^/]+/)?##; s#\.git$##')
-# Resolve clone URL (lightweight ls-remote probe)
-CLONE_URL=""
-GH_TOKEN=$(gh auth token 2>/dev/null || true)
-if [ -n "$GH_TOKEN" ]; then
-  HTTPS_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-  git ls-remote "$HTTPS_URL" HEAD &>/dev/null && CLONE_URL="$HTTPS_URL"
-fi
-[ -z "$CLONE_URL" ] && git ls-remote "git@github.com:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github.com:${REPO}.git"
-[ -z "$CLONE_URL" ] && git ls-remote "git@github-personal:${REPO}.git" HEAD &>/dev/null && CLONE_URL="git@github-personal:${REPO}.git"
-[ -z "$CLONE_URL" ] && { echo "Error: Cannot access $REPO via HTTPS or SSH"; exit 0; }
 
-# Check if project branch exists remotely
-REMOTE_BRANCH="$PROJECT_SLUG/$BRANCH"
-if git ls-remote --heads "$CLONE_URL" "$REMOTE_BRANCH" 2>/dev/null | grep -q .; then
-  TARGET_BRANCH="$REMOTE_BRANCH"
+# Read push log entries for this project and branch
+PUSHLOG="$HOME/.claude/prompt-review-pushlog.jsonl"
+if [ -f "$PUSHLOG" ]; then
+  PUSH_ENTRIES=$(jq -c --arg p "$PROJECT_SLUG" --arg b "$BRANCH" \
+    'select(.project == $p and .branch == $b)' "$PUSHLOG" 2>/dev/null)
+  PUSH_COUNT=$(echo "$PUSH_ENTRIES" | grep -c . 2>/dev/null || echo 0)
+  echo "PUSH_LOG_ENTRIES=$PUSH_COUNT"
 else
-  TARGET_BRANCH="$BASE_BRANCH"
-fi
-
-# Shallow clone of only the needed branch
-ARCHIVE_DIR="$(mktemp -d)"
-trap '[[ -n "$ARCHIVE_DIR" ]] && rm -rf "$ARCHIVE_DIR"' EXIT
-git clone --depth 1 --branch "$TARGET_BRANCH" "$CLONE_URL" "$ARCHIVE_DIR"
-cd "$ARCHIVE_DIR"
-if [ "$TARGET_BRANCH" = "$BASE_BRANCH" ]; then
-  git checkout -b "$REMOTE_BRANCH"
-fi
-SESSION_DIR="$ARCHIVE_DIR/sessions/$PROJECT_SLUG/$BRANCH"
-
-if [ ! -d "$SESSION_DIR" ] || [ -z "$(ls "$SESSION_DIR"/push-*.md 2>/dev/null)" ]; then
-  echo "NO_PUSH_RECORDS"
-  # Fall back to capturing current session directly
+  PUSH_COUNT=0
+  echo "NO_PUSH_LOG"
 fi
 ```
 
-If no push records exist (user never pushed, or ran `/review` manually), capture the current session directly (same as push hook, but inline).
+**Prompt collection:** Regardless of whether push log entries exist, collect ALL user prompts from the current Claude session context. The JSONL provides push boundaries (timestamps, commits); the session context provides the actual prompt text.
+
+**If `/score` was previously run:** Check for cached score results at `~/.claude/prompt-review-score-cache.json`. If a cache exists for the current session, reuse the scores instead of re-scoring (see Step C-3).
+
+**Fallback:** If no push log entries exist (user never pushed, or JSONL was cleared), capture the current session directly. The PR will show a single aggregated view without per-push boundaries.
 
 ---
 
-### Step C-3: Score Prompts (LLM — single call)
+### Step C-3: Score Prompts (LLM — single call, or reuse cache)
 
-Score all collected prompts against 8 criteria in a single LLM call.
+**Cache check:** Before scoring, check for cached `/score` results at `~/.claude/prompt-review-score-cache.json`. If a cache exists for the current session ID (`${CLAUDE_SESSION_ID}`), reuse the cached scores and skip re-evaluation. This avoids redundant LLM work when the user already ran `/score` during the session.
+
+If no cache exists, score all collected prompts against 8 criteria in a single LLM call.
 
 **Scoring criteria (100 points total):**
 
@@ -802,17 +643,26 @@ If secrets detected, ask user to redact, confirm false positive, or abort.
 
 ---
 
-### Step C-5: Generate PR Content
+### Step C-5: Generate Review Files
+
+Generate two files for the PR's `Files Changed` tab, plus a short PR body.
 
 **PR Title:** `[Prompt Review] {date} — {topic} — @{author}`
 
 The `{topic}` portion of the PR title should be written in the configured language (auto-detected or explicit). The `[Prompt Review]` prefix, date, and `@{author}` remain in English.
 
-**PR Body:** Follow the template at `${CLAUDE_SKILL_DIR}/templates/prompt-review.md`. See the filled example at `${CLAUDE_SKILL_DIR}/templates/prompt-review-example.md` for reference.
+**File 1 — `prompts.md`:** Follow the template at `${CLAUDE_SKILL_DIR}/templates/prompts.md`.
+Contains the Review Focus TL;DR and the full prompt sequence as plain text (no code blocks) so reviewers can leave GitHub line comments on individual prompt lines.
 
-Apply the `$LANGUAGE` setting: write Finding, Summary, Improvement Suggestions, Prompt Sequence delta descriptions, and Code Impact summaries in the configured language. Section headers, table column names, and badge labels remain in English.
+**File 2 — `summary.md`:** Follow the template at `${CLAUDE_SKILL_DIR}/templates/summary.md`.
+Contains the scorecard, code impact, improvement suggestions, reviewer checklist, and session metadata.
 
-Use session ID `${CLAUDE_SESSION_ID}` in the metadata section.
+**PR Body:** Follow the template at `${CLAUDE_SKILL_DIR}/templates/prompt-review.md`.
+A short summary with score badge, Review Focus, and a pointer to the Files Changed tab. See the filled example at `${CLAUDE_SKILL_DIR}/templates/prompt-review-example.md` for reference on content style (note: the example uses the previous single-file format).
+
+Apply the `$LANGUAGE` setting: write Review Focus, Finding, Summary, Improvement Suggestions, Prompt Sequence delta descriptions, and Code Impact summaries in the configured language. Section headers, table column names, and badge labels remain in English.
+
+Use session ID `${CLAUDE_SESSION_ID}` in the metadata section of `summary.md`.
 
 ---
 
@@ -845,9 +695,29 @@ echo "  [3/5] Writing session files..."
 mkdir -p "sessions/$PROJECT_SLUG/$PROJECT_BRANCH"
 # Copy accumulated push records into the branch
 
+# === AI FILE GENERATION STEP (not bash — Claude performs this) ===
+# You MUST generate the review files and write them before continuing.
+#
+# 1. Write prompts.md to sessions/$PROJECT_SLUG/$PROJECT_BRANCH/prompts.md
+#    - Use template: ${CLAUDE_SKILL_DIR}/templates/prompts.md
+#    - Review Focus TL;DR + prompt sequence as plain text (no code blocks)
+#    - Reviewers will leave line comments on this file
+#
+# 2. Write summary.md to sessions/$PROJECT_SLUG/$PROJECT_BRANCH/summary.md
+#    - Use template: ${CLAUDE_SKILL_DIR}/templates/summary.md
+#    - Scorecard, code impact, improvement suggestions, session metadata
+#
+# 3. Write PR body to $PR_BODY_FILE
+#    - Use template: ${CLAUDE_SKILL_DIR}/templates/prompt-review.md
+#    - Short summary: score badge + Review Focus + "See Files Changed" pointer
+#
+# 4. Apply $LANGUAGE setting to all generated content
+# 5. Set COMMIT_SUMMARY to a concise summary of the session's work
+# ===
+
 echo "  [4/5] Pushing..."
 git add .
-# COMMIT_SUMMARY is set during PR content generation (Step C-5).
+# COMMIT_SUMMARY is set by the AI generation step above.
 # One-line summary of what the session accomplished, in $LANGUAGE.
 git commit -m "$COMMIT_SUMMARY"
 git push origin "$BRANCH"
@@ -935,10 +805,9 @@ Fix:   [exact command to resolve]
 | Not authenticated | `Error: Not authenticated with GitHub.` / `Cause: gh auth session expired or not configured.` / `Fix: Run: gh auth login` |
 | Repo not accessible | `Error: Cannot access {REPO}.` / `Cause: Repository doesn't exist or you lack access.` / `Fix: Check the name or run /review --setup to reconfigure.` |
 | Push failed | `Error: Push to {REPO} failed.` / `Cause: Insufficient write permissions.` / `Fix: Check write permissions: gh auth status` |
-| No push records | `Error: No prompt data found.` / `Cause: No git push happened in this session yet.` / `Fix: Push some code first, or capture current session directly.` |
+| No session prompts | `Error: No prompt data found.` / `Cause: No prompts in current session context.` / `Fix: Run /review from the same session where you worked, or run /score first to cache results.` |
 | Secret scan found sensitive data | `Error: Sensitive data detected in prompt content.` / `Cause: Potential secrets found (API keys, tokens, passwords).` / `Fix: Redact the flagged content, confirm false positive, or abort.` |
-| Rate limited | `Error: Push captured too recently.` / `Cause: Last push was less than 30 seconds ago.` / `Fix: Wait 30 seconds and push again.` |
-| File size exceeded | `Error: Push record exceeds 1 MB limit.` / `Cause: Too many prompts or large code diffs in this session.` / `Fix: Split work into smaller sessions with fewer prompts.` |
+| File size exceeded | `Error: Generated file exceeds 1 MB limit.` / `Cause: Too many prompts or large code diffs in this session.` / `Fix: Split work into smaller sessions with fewer prompts.` |
 
 ---
 
@@ -1026,15 +895,15 @@ This means the project list builds organically through normal development workfl
 
 ## PR Reading Levels
 
-Prompt review PRs use a 4-level progressive disclosure structure so reviewers can engage at the depth they choose:
+Prompt review PRs use a 4-level progressive disclosure structure across 3 surfaces so reviewers can engage at the depth they choose:
 
-| Level | Section | Audience | What it shows |
-|-------|---------|----------|---------------|
-| **Level 1** | Score header | Everyone | Grade badge, total score, one-line summary — instant triage |
-| **Level 2** | Scorecard + Code Delta | Team leads, async reviewers | 8-criterion breakdown with progress bars + what code was produced |
-| **Level 3** | Prompt Sequence + Improvement Tips | Detailed reviewers | Verbatim prompts with per-prompt mini-scores, delta annotations, and concrete rewrite suggestions |
-| **Level 4** | Reviewer Checklist + Session Metadata | Deep reviewers, auditors | Structured checklist for leaving review comments + full YAML metadata |
+| Level | Surface | Section | Audience | What it shows |
+|-------|---------|---------|----------|---------------|
+| **Level 1** | PR body | Score header + Review Focus | Everyone | Grade badge, total score, key areas to watch — instant triage |
+| **Level 2** | `summary.md` | Scorecard + Code Delta | Team leads, async reviewers | 8-criterion breakdown with progress bars + what code was produced |
+| **Level 3** | `prompts.md` | Prompt Sequence | Detailed reviewers | Verbatim prompts as plain text with per-prompt mini-scores — **leave line comments here** |
+| **Level 4** | `summary.md` | Improvement Tips + Checklist + Metadata | Deep reviewers, auditors | Concrete rewrite suggestions, structured checklist, full YAML metadata |
 
-Levels 3 and 4 use `<details>` collapse blocks in the PR body so the PR remains scannable at a glance.
+The PR body is a slim summary pointing reviewers to the **Files Changed** tab. Levels 3 and 4 content lives in committed files (`prompts.md`, `summary.md`) where GitHub's line comment feature works natively.
 
-> **Note on push records:** Push record files (`sessions/{project-slug}/{branch}/push-NNN.md`) do **not** use `<details>` tags. Push records are committed directly to the `{project-slug}/{branch}` branch and are consumed programmatically when building the PR — they must be plain markdown without HTML tags that would appear as raw text in git diffs.
+> **Note on push records:** Push record files (`sessions/{project-slug}/{branch}/push-NNN.md`) are intermediate storage. They are committed directly to the `{project-slug}/{branch}` branch and consumed when building `prompts.md` and `summary.md` at PR creation time.
